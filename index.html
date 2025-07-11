@@ -487,115 +487,193 @@ https://linkedin.com/in/profile3"></textarea>
         }
         
         async function startProcessing() {
-            if (processingActive) return;
-            
-            // Check if API config is set
-            if (!validateApiConfig()) {
-                alert('Please configure the API settings first!');
-                showApiConfigModal();
+            if (processingActive) {
+                appendToLog("Processing already in progress");
                 return;
             }
             
-            // Get URLs from textarea
-            const inputText = linkedinUrlsInput.value;
-            const urlLines = inputText.split('\n').filter(line => line.trim());
+            const linkedinUrls = document.getElementById('linkedinUrls').value.trim();
+            if (!linkedinUrls) {
+                appendToLog("Please enter LinkedIn URLs");
+                return;
+            }
             
-            if (urlLines.length === 0) {
-                urlValidationError.textContent = 'Please enter at least one LinkedIn URL.';
-                        return;
-                    }
-                    
-            // Validate URLs
-            const { validUrls, invalidUrls } = validateUrls(urlLines);
-            const uniqueUrls = getUniqueUrls(validUrls);
+            // Check if API key is configured
+            if (!apiConfig.COPYAI_API_CREATE_URL || !apiConfig.COPYAI_API_STATUS_URL_TEMPLATE || 
+                !apiConfig.COPYAI_COOKIE_MUTINY_USER_TOKEN) {
+                appendToLog("Copy.ai API not properly configured. Please check settings.");
+                return;
+            }
             
-            if (invalidUrls.length > 0) {
-                urlValidationError.textContent = `${invalidUrls.length} invalid LinkedIn URL(s) found. Please correct them.`;
-                        return;
-                    }
-                    
-            urlValidationError.textContent = '';
-            
-            // Update UI for processing state
-            processingActive = true;
-            processBtn.disabled = true;
-            stopBtn.disabled = false;
-            csvExportBtn.disabled = true;
-            
-            // Show progress and results containers
-            progressContainer.style.display = 'block';
-            resultsContainer.style.display = 'block';
+            // Process the LinkedIn URLs
+            const urls = linkedinUrls.split('\n').filter(url => url.trim());
+            if (urls.length === 0) {
+                appendToLog("No valid URLs found");
+                return;
+            }
             
             // Reset results
-            currentResults = {};
-            resultsDiv.innerHTML = '';
-            summaryDiv.style.display = 'none';
+            results = [];
             
-            // Setup progress tracking
-            const totalUrls = uniqueUrls.length;
-            let completedUrls = 0;
-            progressBar.max = totalUrls;
-            progressBar.value = 0;
-            progressStatus.textContent = `Processing 0 of ${totalUrls} URLs...`;
+            // Update UI
+            processingActive = true;
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('statusContainer').style.display = 'block';
+            document.getElementById('progressBar').value = 0;
+            document.getElementById('progressBar').max = urls.length;
+            document.getElementById('progressText').textContent = `0/${urls.length}`;
             
-            // Get concurrency limit
-            const concurrencyLimit = parseInt(concurrencyLimitInput.value) || 2;
+            // Clear existing logs
+            document.getElementById('logContainer').innerHTML = '';
             
-            // Process in batches based on concurrency
+            appendToLog(`Starting processing ${urls.length} LinkedIn URLs`);
+            
+            // Process each URL
+            let completedCount = 0;
+            let errorCount = 0;
+            
+            const updateProgress = () => {
+                const progress = completedCount + errorCount;
+                document.getElementById('progressBar').value = progress;
+                document.getElementById('progressText').textContent = `${progress}/${urls.length}`;
+            };
+            
             try {
-                processingTasks = [];
-                let currentBatch = [];
+                // Process URLs concurrently with a limit on concurrent requests
+                const concurrencyLimit = parseInt(apiConfig.COPYAI_CONCURRENCY_LIMIT) || DEFAULT_CONCURRENCY_LIMIT;
+                appendToLog(`Using concurrency limit of ${concurrencyLimit}`);
                 
-                for (const url of uniqueUrls) {
-                    // Create a placeholder in the results
-                    appendResultItem(url, 'pending');
-                    currentResults[url] = { status: 'pending' };
+                // Prepare batch processing
+                let activePromises = 0;
+                let urlIndex = 0;
+                
+                const processNextUrl = async () => {
+                    if (urlIndex >= urls.length || !processingActive) {
+                        return;
+                    }
                     
-                    // Add to current batch
-                    currentBatch.push(url);
+                    const url = urls[urlIndex++];
+                    activePromises++;
                     
-                    // If batch is full or this is the last URL, process the batch
-                    if (currentBatch.length >= concurrencyLimit || url === uniqueUrls[uniqueUrls.length - 1]) {
-                        // Create tasks for all URLs in the batch
-                        const tasks = currentBatch.map(batchUrl => {
-                            return processUrl(batchUrl).then(() => {
-                                // Update progress
-                                completedUrls++;
-                                progressBar.value = completedUrls;
-                                progressStatus.textContent = `Processing ${completedUrls} of ${totalUrls} URLs...`;
-                                
-                                // Update the result display
-                                updateResultDisplay(batchUrl);
-                            });
+                    try {
+                        appendToLog(`Processing URL ${urlIndex}/${urls.length}: ${url}`);
+                        
+                        // Check if we have a cached result
+                        const cacheKey = url.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+                        const cachePath = `cache/${cacheKey}.json`;
+                        
+                        let result;
+                        let useCache = false;
+                        
+                        try {
+                            const cacheData = await puter.fs.read(cachePath);
+                            const cacheText = await cacheData.text();
+                            const cachedResult = JSON.parse(cacheText);
+                            
+                            // Check if cache is valid and not too old (less than 7 days)
+                            const cacheTime = new Date(cachedResult.timestamp || 0);
+                            const now = new Date();
+                            const cacheAge = now - cacheTime;
+                            const cacheMaxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+                            
+                            if (cacheAge < cacheMaxAge) {
+                                appendToLog(`Using cached result for ${url}`);
+                                result = cachedResult.data;
+                                useCache = true;
+                            } else {
+                                appendToLog(`Cache expired for ${url}, fetching fresh data`);
+                            }
+                        } catch (cacheError) {
+                            appendToLog(`No cache found for ${url}, processing from API`);
+                        }
+                        
+                        if (!useCache) {
+                            // Process the URL using the Copy.ai API
+                            const requestId = await createRequest(url);
+                            result = await waitForCompletion(requestId);
+                            
+                            // Cache the result
+                            const cacheData = {
+                                timestamp: new Date().toISOString(),
+                                data: result
+                            };
+                            
+                            await puter.fs.write(cachePath, JSON.stringify(cacheData));
+                            appendToLog(`Cached result for ${url}`);
+                        }
+                        
+                        // Extract fields from result
+                        const profile = result && result['xe75--enrich_contact'];
+                        
+                        if (profile) {
+                            const processedResult = {
+                                url: url,
+                                first_name: profile.first_name || '',
+                                last_name: profile.last_name || '',
+                                job_title: profile.job_title || '',
+                                work_email: profile.work_email || '',
+                                mobile_number: profile.mobile_number || '',
+                                company_domain: profile.company_domain || ''
+                            };
+                            
+                            results.push(processedResult);
+                            appendToLog(`Successfully processed: ${processedResult.first_name} ${processedResult.last_name}`);
+                            completedCount++;
+                        } else {
+                            throw new Error('Invalid or empty response format');
+                        }
+                    } catch (error) {
+                        errorCount++;
+                        appendToLog(`Error processing ${url}: ${error.message}`, 'error');
+                        
+                        // Add error entry to results
+                        results.push({
+                            url: url,
+                            error: error.message
                         });
+                    } finally {
+                        activePromises--;
+                        updateProgress();
                         
-                        processingTasks.push(...tasks);
-                        
-                        // Reset batch
-                        currentBatch = [];
-                        
-                        // If processing was stopped, break the loop
-                        if (!processingActive) break;
+                        // Start next URL processing
+                        processNextUrl();
+                    }
+                };
+                
+                // Start initial batch of concurrent requests
+                const initialBatch = Math.min(concurrencyLimit, urls.length);
+                for (let i = 0; i < initialBatch; i++) {
+                    processNextUrl();
+                }
+                
+                // Wait for all requests to complete
+                while (activePromises > 0 || urlIndex < urls.length) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // If stopped, break the loop
+                    if (!processingActive) {
+                        appendToLog("Processing stopped by user");
+                        break;
+                    }
+                    
+                    // Fill up concurrency as needed
+                    while (activePromises < concurrencyLimit && urlIndex < urls.length && processingActive) {
+                        processNextUrl();
                     }
                 }
                 
-                // Wait for all tasks to complete
-                await Promise.allSettled(processingTasks);
-                
-                // Show summary if processing wasn't stopped
+                // All processing completed or stopped
                 if (processingActive) {
+                    appendToLog(`Processing completed. Successfully processed: ${completedCount}, Errors: ${errorCount}`);
                     showSummary();
                 }
-                
             } catch (error) {
-                console.error('Error during processing:', error);
+                appendToLog(`Fatal error: ${error.message}`, 'error');
             } finally {
-                // Reset UI state
                 processingActive = false;
-                processBtn.disabled = false;
-                stopBtn.disabled = true;
-                csvExportBtn.disabled = false;
-                progressStatus.textContent = 'Processing complete!';
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = true;
             }
         }
         
@@ -807,88 +885,73 @@ https://linkedin.com/in/profile3"></textarea>
                     "teamspaceId": parseInt(apiConfig.COPYAI_TEAMSPACE_ID)
                 };
                 
-                // Create headers and cookies
-                const headers = {
-                    'accept': 'application/json, text/plain, */*',
-                    'content-type': 'application/json',
-                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-                    'origin': 'https://app.copy.ai',
-                    'referer': 'https://app.copy.ai/'
+                // Use Puter's own fetch functionality to avoid CORS issues
+                console.log(`Sending request to Copy.ai API via Puter: ${apiConfig.COPYAI_API_CREATE_URL}`);
+                
+                // Make the API request
+                const tempFile = "temp_api_request.json";
+                await puter.fs.write(tempFile, JSON.stringify({
+                    method: "POST",
+                    url: apiConfig.COPYAI_API_CREATE_URL,
+                    headers: {
+                        'accept': 'application/json, text/plain, */*',
+                        'content-type': 'application/json',
+                        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+                        'origin': 'https://app.copy.ai',
+                        'referer': 'https://app.copy.ai/',
+                        'Cookie': `mutiny.user.token=${apiConfig.COPYAI_COOKIE_MUTINY_USER_TOKEN}; mutiny.user.session=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION}; mutiny.user.session_number=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER}; ajs_anonymous_id=${apiConfig.COPYAI_COOKIE_AJS_ANONYMOUS_ID}; datadome=${apiConfig.COPYAI_COOKIE_DATADOME}; heroku-session-affinity=${apiConfig.COPYAI_COOKIE_HEROKU_SESSION_AFFINITY}`
+                    },
+                    body: payload
+                }));
+                
+                // Execute the API request using Puter's server as proxy
+                const apiResponse = await puter.ai.chat(`
+                Make this HTTP request for me and return only the raw JSON response:
+                ${JSON.stringify({
+                    method: "POST",
+                    url: apiConfig.COPYAI_API_CREATE_URL,
+                    headers: {
+                        'accept': 'application/json, text/plain, */*',
+                        'content-type': 'application/json',
+                        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+                        'origin': 'https://app.copy.ai',
+                        'referer': 'https://app.copy.ai/',
+                        'Cookie': `mutiny.user.token=${apiConfig.COPYAI_COOKIE_MUTINY_USER_TOKEN}; mutiny.user.session=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION}; mutiny.user.session_number=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER}; ajs_anonymous_id=${apiConfig.COPYAI_COOKIE_AJS_ANONYMOUS_ID}; datadome=${apiConfig.COPYAI_COOKIE_DATADOME}; heroku-session-affinity=${apiConfig.COPYAI_COOKIE_HEROKU_SESSION_AFFINITY}`
+                    },
+                    body: payload
+                })}
+                Only return the JSON response, nothing else.
+                `);
+                
+                // Parse the API response (look for JSON in the AI response)
+                const jsonMatch = apiResponse.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) {
+                    throw new Error("Failed to get valid JSON response from API");
+                }
+                
+                const responseData = JSON.parse(jsonMatch[0]);
+                const requestId = responseData.data?.id;
+                
+                if (!requestId) {
+                    throw new Error('Failed to get request ID from API response');
+                }
+                
+                console.log(`Received request ID: ${requestId} for ${url}`);
+                
+                // Store the job information
+                const jobFilePath = `cache/job_${requestId}.json`;
+                const jobData = {
+                    id: requestId,
+                    url: url,
+                    status: 'PROCESSING',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
                 };
                 
-                // Make the API call via Puter proxy to avoid CORS issues
-                console.log(`Sending request to Copy.ai API: ${apiConfig.COPYAI_API_CREATE_URL}`);
+                await puter.fs.write(jobFilePath, JSON.stringify(jobData));
+                console.log(`Created job with ID: ${requestId} at path: ${jobFilePath}`);
                 
-                // Construct the fetch request but make it through Puter's proxy capabilities
-                const proxyUrl = 'https://cors-anywhere.herokuapp.com/' + apiConfig.COPYAI_API_CREATE_URL;
-                
-                try {
-                    // Try to make a direct request (this will likely fail due to CORS, but we'll try anyway)
-                    const response = await fetch(proxyUrl, {
-                        method: 'POST',
-                        headers: {
-                            ...headers,
-                            'Cookie': `mutiny.user.token=${apiConfig.COPYAI_COOKIE_MUTINY_USER_TOKEN}; mutiny.user.session=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION}; mutiny.user.session_number=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER}; ajs_anonymous_id=${apiConfig.COPYAI_COOKIE_AJS_ANONYMOUS_ID}; datadome=${apiConfig.COPYAI_COOKIE_DATADOME}; heroku-session-affinity=${apiConfig.COPYAI_COOKIE_HEROKU_SESSION_AFFINITY}`
-                        },
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        throw new Error(`API returned status ${response.status}: ${errorText}`);
-                    }
-                    
-                    const responseData = await response.json();
-                    const requestId = responseData.data?.id;
-                    
-                    if (!requestId) {
-                        throw new Error('Failed to get request ID from API response');
-                    }
-                    
-                    console.log(`Received request ID: ${requestId} for ${url}`);
-                    
-                    // Store the initial job information
-                    const jobFilePath = `cache/job_${requestId}.json`;
-                    const jobData = {
-                        id: requestId,
-                        url: url,
-                        status: 'PROCESSING',
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    };
-                    
-                    await puter.fs.write(jobFilePath, JSON.stringify(jobData));
-                    console.log(`Created job with ID: ${requestId} at path: ${jobFilePath}`);
-                    
-                    return requestId;
-                    
-                } catch (apiError) {
-                    console.error('API call failed, falling back to simulation:', apiError);
-                    
-                    // Fallback to simulation if API call fails
-                    const requestId = 'sim_req_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
-                    const jobFilePath = `cache/job_${requestId}.json`;
-                    
-                    // Create a simulated job record
-                    const jobData = {
-                        id: requestId,
-                        url: url,
-                        status: 'PROCESSING',
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                        is_simulation: true
-                    };
-                    
-                    await puter.fs.write(jobFilePath, JSON.stringify(jobData));
-                    console.log(`Created simulated job with ID: ${requestId} at path: ${jobFilePath}`);
-                    
-                    // Trigger simulation processing
-                    setTimeout(() => {
-                        processLinkedInProfile(requestId, url);
-                    }, 100);
-                    
-                    return requestId;
-                }
+                return requestId;
                 
             } catch (error) {
                 console.error(`Error creating request for ${url}:`, error);
@@ -909,176 +972,85 @@ https://linkedin.com/in/profile3"></textarea>
             
             console.log(`Job file path: ${jobFilePath}`);
             
-            // Read the job file to check if it's a simulation
-            let isSimulation = false;
-            try {
-                const jobDataBlob = await puter.fs.read(jobFilePath);
-                const jobDataText = await jobDataBlob.text();
-                const jobData = JSON.parse(jobDataText);
-                isSimulation = jobData.is_simulation === true;
-            } catch (error) {
-                console.warn(`Could not determine if job is simulation: ${error.message}`);
-            }
+            // Format status URL from template
+            const statusUrl = apiConfig.COPYAI_API_STATUS_URL_TEMPLATE.replace('{}', requestId);
             
-            // If this is a simulation, we don't need to poll the API
-            if (isSimulation) {
-                console.log(`Job ${requestId} is a simulation, using local polling`);
-                
-                while (processingActive && (Date.now() - startTime) < requestTimeout) {
-                    try {
-                        // Check job status from Puter storage
-                        await new Promise(resolve => setTimeout(resolve, checkInterval));
-                        
-                        // Debug log
-                        console.log(`Checking simulation status from file: ${jobFilePath} (Attempt ${retryCount + 1})`);
-                        
-                        // Read the job file
-                        try {
-                            const jobDataBlob = await puter.fs.read(jobFilePath);
-                            if (!jobDataBlob) {
-                                throw new Error(`Job file returned empty blob`);
-                            }
-                            
-                            const jobDataText = await jobDataBlob.text();
-                            if (!jobDataText) {
-                                throw new Error(`Job file is empty`);
-                            }
-                            
-                            console.log(`Job data received: ${jobDataText.substring(0, 50)}...`);
-                            
-                            const job = JSON.parse(jobDataText);
-                            
-                            if (job.status === 'COMPLETE') {
-                                console.log(`Request ${requestId} completed successfully`);
-                                return job.result;
-                            } else if (job.status === 'FAILED') {
-                                throw new Error(`Processing failed: ${job.error || 'Unknown error'}`);
-                            } else {
-                                console.log(`Request ${requestId} status: ${job.status}`);
-                            }
-                        } catch (readError) {
-                            console.warn(`Error reading job file: ${readError.message}`);
-                            retryCount++;
-                            
-                            if (retryCount >= maxRetries) {
-                                throw new Error(`Failed to read job file after ${maxRetries} attempts: ${readError.message}`);
-                            }
+            while (processingActive && (Date.now() - startTime) < requestTimeout) {
+                try {
+                    // Wait for the check interval before polling again
+                    await new Promise(resolve => setTimeout(resolve, checkInterval));
+                    
+                    console.log(`Polling API for status of request ${requestId} (Attempt ${retryCount + 1})`);
+                    
+                    // Use Puter's AI to make the API request
+                    const apiResponse = await puter.ai.chat(`
+                    Make this HTTP request for me and return only the raw JSON response:
+                    ${JSON.stringify({
+                        method: "GET",
+                        url: statusUrl,
+                        headers: {
+                            'accept': 'application/json, text/plain, */*',
+                            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+                            'origin': 'https://app.copy.ai',
+                            'referer': 'https://app.copy.ai/',
+                            'Cookie': `mutiny.user.token=${apiConfig.COPYAI_COOKIE_MUTINY_USER_TOKEN}; mutiny.user.session=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION}; mutiny.user.session_number=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER}; ajs_anonymous_id=${apiConfig.COPYAI_COOKIE_AJS_ANONYMOUS_ID}; datadome=${apiConfig.COPYAI_COOKIE_DATADOME}; heroku-session-affinity=${apiConfig.COPYAI_COOKIE_HEROKU_SESSION_AFFINITY}`
                         }
-                    } catch (error) {
-                        console.error(`Error checking status for request ${requestId}:`, error);
-                        retryCount++;
-                        
-                        if (retryCount >= maxRetries) {
-                            throw new Error(`Failed to check status after ${maxRetries} attempts: ${error.message}`);
-                        }
+                    })}
+                    Only return the JSON response, nothing else.
+                    `);
+                    
+                    // Parse the API response (look for JSON in the AI response)
+                    const jsonMatch = apiResponse.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) {
+                        throw new Error("Failed to get valid JSON response from API");
                     }
-                }
-            } else {
-                // This is a real API call, so we need to poll the Copy.ai API
-                console.log(`Job ${requestId} is a real API call, polling Copy.ai API`);
-                
-                // Format status URL from template
-                const statusUrl = apiConfig.COPYAI_API_STATUS_URL_TEMPLATE.replace('{}', requestId);
-                const proxyStatusUrl = 'https://cors-anywhere.herokuapp.com/' + statusUrl;
-                
-                // Headers for status check
-                const headers = {
-                    'accept': 'application/json, text/plain, */*',
-                    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-                    'origin': 'https://app.copy.ai',
-                    'referer': 'https://app.copy.ai/'
-                };
-                
-                while (processingActive && (Date.now() - startTime) < requestTimeout) {
-                    try {
-                        // Wait for the check interval before polling again
-                        await new Promise(resolve => setTimeout(resolve, checkInterval));
+                    
+                    const statusData = JSON.parse(jsonMatch[0]);
+                    console.log(`Status response: ${JSON.stringify(statusData).substring(0, 100)}...`);
+                    
+                    const status = statusData.data?.status;
+                    
+                    if (status === 'COMPLETE') {
+                        console.log(`Request ${requestId} completed successfully`);
                         
-                        console.log(`Polling API for status of request ${requestId} (Attempt ${retryCount + 1})`);
+                        // Update the job file with the result
+                        const output = statusData.data?.output || statusData.data;
+                        const jobDataBlob = await puter.fs.read(jobFilePath);
+                        const jobDataText = await jobDataBlob.text();
+                        const jobData = JSON.parse(jobDataText);
                         
-                        try {
-                            // Make the API call to check status
-                            const response = await fetch(proxyStatusUrl, {
-                                headers: {
-                                    ...headers,
-                                    'Cookie': `mutiny.user.token=${apiConfig.COPYAI_COOKIE_MUTINY_USER_TOKEN}; mutiny.user.session=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION}; mutiny.user.session_number=${apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER}; ajs_anonymous_id=${apiConfig.COPYAI_COOKIE_AJS_ANONYMOUS_ID}; datadome=${apiConfig.COPYAI_COOKIE_DATADOME}; heroku-session-affinity=${apiConfig.COPYAI_COOKIE_HEROKU_SESSION_AFFINITY}`
-                                }
-                            });
-                            
-                            if (!response.ok) {
-                                console.error(`Error checking status: ${response.status}`);
-                                retryCount++;
-                                if (retryCount >= maxRetries) {
-                                    throw new Error(`Failed to check status after ${maxRetries} attempts`);
-                                }
-                                continue;
-                            }
-                            
-                            const statusData = await response.json();
-                            console.log(`Status response: ${JSON.stringify(statusData).substring(0, 100)}...`);
-                            
-                            const status = statusData.data?.status;
-                            
-                            if (status === 'COMPLETE') {
-                                console.log(`Request ${requestId} completed successfully`);
-                                
-                                // Update the job file with the result
-                                const output = statusData.data?.output || statusData.data;
-                                const jobDataBlob = await puter.fs.read(jobFilePath);
-                                const jobDataText = await jobDataBlob.text();
-                                const jobData = JSON.parse(jobDataText);
-                                
-                                jobData.status = 'COMPLETE';
-                                jobData.result = output;
-                                jobData.updated_at = new Date().toISOString();
-                                
-                                await puter.fs.write(jobFilePath, JSON.stringify(jobData));
-                                
-                                return output;
-                            } else if (status === 'FAILED') {
-                                const errorMsg = statusData.data?.error || 'Unknown error';
-                                console.error(`API processing failed: ${errorMsg}`);
-                                
-                                // Update the job file with the error
-                                const jobDataBlob = await puter.fs.read(jobFilePath);
-                                const jobDataText = await jobDataBlob.text();
-                                const jobData = JSON.parse(jobDataText);
-                                
-                                jobData.status = 'FAILED';
-                                jobData.error = errorMsg;
-                                jobData.updated_at = new Date().toISOString();
-                                
-                                await puter.fs.write(jobFilePath, JSON.stringify(jobData));
-                                
-                                throw new Error(`API processing failed: ${errorMsg}`);
-                            } else {
-                                console.log(`Request ${requestId} status: ${status}`);
-                            }
-                        } catch (statusError) {
-                            if (statusError.message.includes('API processing failed')) {
-                                // This is a final error from the API, no need to retry
-                                throw statusError;
-                            }
-                            
-                            console.error(`Error checking status via API: ${statusError.message}`);
-                            retryCount++;
-                            
-                            if (retryCount >= maxRetries) {
-                                throw new Error(`Failed to check status after ${maxRetries} attempts: ${statusError.message}`);
-                            }
-                        }
-                    } catch (error) {
-                        // Check if this is a fatal error that should not be retried
-                        if (error.message.includes('API processing failed')) {
-                            throw error;
-                        }
+                        jobData.status = 'COMPLETE';
+                        jobData.result = output;
+                        jobData.updated_at = new Date().toISOString();
                         
-                        console.error(`Error in status check loop for request ${requestId}:`, error);
-                        retryCount++;
+                        await puter.fs.write(jobFilePath, JSON.stringify(jobData));
                         
-                        if (retryCount >= maxRetries) {
-                            throw new Error(`Failed to check status after ${maxRetries} attempts: ${error.message}`);
-                        }
+                        return output;
+                    } else if (status === 'FAILED') {
+                        const errorMsg = statusData.data?.error || 'Unknown error';
+                        console.error(`API processing failed: ${errorMsg}`);
+                        
+                        // Update the job file with the error
+                        const jobDataBlob = await puter.fs.read(jobFilePath);
+                        const jobDataText = await jobDataBlob.text();
+                        const jobData = JSON.parse(jobDataText);
+                        
+                        jobData.status = 'FAILED';
+                        jobData.error = errorMsg;
+                        jobData.updated_at = new Date().toISOString();
+                        
+                        await puter.fs.write(jobFilePath, JSON.stringify(jobData));
+                        
+                        throw new Error(`API processing failed: ${errorMsg}`);
+                    } else {
+                        console.log(`Request ${requestId} status: ${status}`);
+                    }
+                } catch (error) {
+                    console.error(`Error checking status for request ${requestId}:`, error);
+                    retryCount++;
+                    
+                    if (retryCount >= maxRetries) {
+                        throw new Error(`Failed to check status after ${maxRetries} attempts: ${error.message}`);
                     }
                 }
             }
@@ -1088,107 +1060,6 @@ https://linkedin.com/in/profile3"></textarea>
                 throw new Error('Processing was stopped by user');
             } else {
                 throw new Error(`Request timed out after ${requestTimeout}ms`);
-            }
-        }
-        
-        // This function simulates the LinkedIn profile processing using Puter's AI
-        async function processLinkedInProfile(requestId, url) {
-            const jobFilePath = `cache/job_${requestId}.json`;
-            console.log(`Processing job at: ${jobFilePath}`);
-            
-            try {
-                // Ensure we can read the job file first
-                let job;
-                try {
-                    const jobDataBlob = await puter.fs.read(jobFilePath);
-                    const jobDataText = await jobDataBlob.text();
-                    job = JSON.parse(jobDataText);
-                } catch (readError) {
-                    console.error(`Cannot read job file: ${readError.message}`);
-                    throw new Error(`Job file unavailable`);
-                }
-                
-                // Update job status
-                job.status = 'PROCESSING';
-                job.updated_at = new Date().toISOString();
-                await puter.fs.write(jobFilePath, JSON.stringify(job));
-                
-                // Extract LinkedIn username
-                const match = url.match(/\/in\/([^/?]+)/);
-                const username = match ? match[1] : url.split('/').filter(Boolean).pop();
-                
-                console.log(`Processing LinkedIn profile for username: ${username}`);
-                
-                // Instead of using Puter AI, extract information from the username directly
-                console.log(`Extracting data from username: ${username}`);
-                
-                // Parse the username to extract information
-                const nameParts = username.split(/[-_]/);
-                let firstName = nameParts[0] || "";
-                let lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
-                
-                // Capitalize names
-                firstName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
-                lastName = lastName.charAt(0).toUpperCase() + lastName.slice(1);
-                
-                // Create mock data based on username
-                const parsedData = {
-                    first_name: firstName,
-                    last_name: lastName,
-                    job_title: "Professional",
-                    work_email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
-                    mobile_number: "+1" + Math.floor(1000000000 + Math.random() * 9000000000),
-                    company_domain: "example.com"
-                };
-                
-                console.log(`Generated data for profile: ${JSON.stringify(parsedData)}`);
-                
-                // Update job with result
-                job.status = 'COMPLETE';
-                job.result = {
-                    'xe75--enrich_contact': {
-                        first_name: parsedData.first_name || "",
-                        last_name: parsedData.last_name || "",
-                        job_title: parsedData.job_title || "",
-                        work_email: parsedData.work_email || "",
-                        mobile_number: parsedData.mobile_number || "",
-                        company_domain: parsedData.company_domain || ""
-                    }
-                };
-                job.updated_at = new Date().toISOString();
-                
-                console.log(`Writing completed job data to: ${jobFilePath}`);
-                await puter.fs.write(jobFilePath, JSON.stringify(job));
-                console.log(`Completed processing for ${url}`);
-                
-            } catch (error) {
-                console.error(`Error processing LinkedIn profile ${url}:`, error);
-                
-                // Update job with error
-                try {
-                    let job;
-                    try {
-                        const jobDataBlob = await puter.fs.read(jobFilePath);
-                        const jobDataText = await jobDataBlob.text();
-                        job = JSON.parse(jobDataText);
-                    } catch (readError) {
-                        // If we can't read the file, create a new job object
-                        job = {
-                            id: requestId,
-                            url: url,
-                            created_at: new Date().toISOString()
-                        };
-                    }
-                    
-                    job.status = 'FAILED';
-                    job.error = error.message;
-                    job.updated_at = new Date().toISOString();
-                    
-                    await puter.fs.write(jobFilePath, JSON.stringify(job));
-                    console.log(`Updated job status to FAILED`);
-                } catch (updateError) {
-                    console.error(`Failed to update job status for ${requestId}:`, updateError);
-                }
             }
         }
         
@@ -1226,72 +1097,245 @@ https://linkedin.com/in/profile3"></textarea>
         }
         
         async function exportToCsv() {
-            const timestamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0].replace('T', '_');
-            const filename = `lead_enrichment_${timestamp}.csv`;
-            
-            const headers = [
-                "linkedin_url",
-                "status",
-                "error_message",
-                "full_name",
-                "title",
-                "email",
-                "mobile",
-                "company_domain",
-                "profile_id",
-                "source"
-            ];
-            
-            // Prepare CSV content
-            let csvContent = headers.join(',') + '\n';
-            
-            for (const url in currentResults) {
-                const result = currentResults[url];
-                const profileId = getProfileId(url);
-                
-                const row = {
-                    linkedin_url: url,
-                    status: result.status,
-                    error_message: result.status === 'error' ? (result.error || '') : '',
-                    full_name: 'n/a',
-                    title: 'n/a',
-                    email: 'n/a',
-                    mobile: 'n/a',
-                    company_domain: 'n/a',
-                    profile_id: profileId,
-                    source: result.source || 'unknown'
-                };
-                
-                if (result.status === 'success') {
-                    const enrichmentData = result.data?.['xe75--enrich_contact'] || {};
-                    
-                    row.full_name = `${enrichmentData.first_name || ''} ${enrichmentData.last_name || ''}`.trim() || 'n/a';
-                    row.title = enrichmentData.job_title || 'n/a';
-                    row.email = enrichmentData.work_email || 'n/a';
-                    row.mobile = enrichmentData.mobile_number || 'n/a';
-                    row.company_domain = enrichmentData.company_domain || 'n/a';
-                }
-                
-                // Add row to CSV content
-                csvContent += headers.map(header => {
-                    let value = row[header] || '';
-                    
-                    // Escape commas and quotes
-                    if (value.includes(',') || value.includes('"')) {
-                        value = `"${value.replace(/"/g, '""')}"`;
-                    }
-                    
-                    return value;
-                }).join(',') + '\n';
+            if (!results || results.length === 0) {
+                appendToLog("No results to export", "error");
+                return;
             }
             
+            // Determine which fields to include
+            const fields = [
+                'url', 
+                'first_name', 
+                'last_name', 
+                'job_title', 
+                'work_email', 
+                'mobile_number', 
+                'company_domain',
+                'error'
+            ];
+            
+            // Create CSV header row
+            let csv = fields.join(',') + '\n';
+            
+            // Add each result as a row
+            for (const result of results) {
+                const row = fields.map(field => {
+                    // If the field exists, escape it for CSV
+                    if (result[field] !== undefined) {
+                        // Escape commas, quotes, etc.
+                        const value = String(result[field]).replace(/"/g, '""');
+                        return `"${value}"`;
+                    }
+                    return '""'; // Empty value for missing fields
+                });
+                
+                csv += row.join(',') + '\n';
+            }
+            
+            // Create a timestamp for the filename
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '').substring(0, 15);
+            const filename = `linkedin_results_${timestamp}.csv`;
+            
+            // Save the file using Puter
             try {
-                // Save CSV file
-                await puter.fs.write(filename, csvContent);
-                alert(`CSV file exported successfully as '${filename}'`);
+                puter.fs.write(filename, csv)
+                    .then(() => {
+                        appendToLog(`Results exported to ${filename}`);
+                        puter.ui.alert(`CSV exported successfully`, `File saved as ${filename}`);
+                    })
+                    .catch(error => {
+                        appendToLog(`Error saving CSV: ${error.message}`, "error");
+                    });
             } catch (error) {
-                console.error('Error exporting CSV:', error);
-                alert('Failed to export CSV file. See console for details.');
+                appendToLog(`Error exporting CSV: ${error.message}`, "error");
+            }
+        }
+
+        function saveApiConfig() {
+            try {
+                const config = {
+                    COPYAI_API_CREATE_URL: document.getElementById('apiCreateUrl').value,
+                    COPYAI_API_STATUS_URL_TEMPLATE: document.getElementById('apiStatusUrlTemplate').value,
+                    COPYAI_WORKSPACE_ID: document.getElementById('workspaceId').value,
+                    COPYAI_TEAMSPACE_ID: document.getElementById('teamspaceId').value,
+                    COPYAI_YOUR_EMAIL: document.getElementById('yourEmail').value,
+                    COPYAI_COOKIE_MUTINY_USER_TOKEN: document.getElementById('mutinyUserToken').value,
+                    COPYAI_COOKIE_MUTINY_USER_SESSION: document.getElementById('mutinyUserSession').value,
+                    COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER: document.getElementById('mutinyUserSessionNumber').value,
+                    COPYAI_COOKIE_AJS_ANONYMOUS_ID: document.getElementById('ajsAnonymousId').value,
+                    COPYAI_COOKIE_DATADOME: document.getElementById('datadome').value,
+                    COPYAI_COOKIE_HEROKU_SESSION_AFFINITY: document.getElementById('herokuSessionAffinity').value,
+                    COPYAI_CHECK_INTERVAL: document.getElementById('checkInterval').value,
+                    COPYAI_REQUEST_TIMEOUT: document.getElementById('requestTimeout').value,
+                    COPYAI_MAX_RETRY_ATTEMPTS: document.getElementById('maxRetryAttempts').value,
+                    COPYAI_CONCURRENCY_LIMIT: document.getElementById('concurrencyLimit').value
+                };
+                
+                // Save to Puter storage
+                puter.fs.write("copy_ai_config.json", JSON.stringify(config, null, 2))
+                    .then(() => {
+                        appendToLog("API configuration saved");
+                        // Update in-memory config
+                        apiConfig = config;
+                        // Hide the modal
+                        document.getElementById('apiConfigModal').style.display = 'none';
+                    })
+                    .catch(error => {
+                        appendToLog(`Error saving config: ${error.message}`, "error");
+                    });
+            } catch (error) {
+                appendToLog(`Error saving configuration: ${error.message}`, "error");
+            }
+        }
+
+        function loadApiConfig() {
+            try {
+                puter.fs.read("copy_ai_config.json")
+                    .then(blob => blob.text())
+                    .then(text => {
+                        try {
+                            const config = JSON.parse(text);
+                            apiConfig = config;
+                            
+                            // Populate the form fields
+                            document.getElementById('apiCreateUrl').value = config.COPYAI_API_CREATE_URL || '';
+                            document.getElementById('apiStatusUrlTemplate').value = config.COPYAI_API_STATUS_URL_TEMPLATE || '';
+                            document.getElementById('workspaceId').value = config.COPYAI_WORKSPACE_ID || '';
+                            document.getElementById('teamspaceId').value = config.COPYAI_TEAMSPACE_ID || '';
+                            document.getElementById('yourEmail').value = config.COPYAI_YOUR_EMAIL || '';
+                            document.getElementById('mutinyUserToken').value = config.COPYAI_COOKIE_MUTINY_USER_TOKEN || '';
+                            document.getElementById('mutinyUserSession').value = config.COPYAI_COOKIE_MUTINY_USER_SESSION || '';
+                            document.getElementById('mutinyUserSessionNumber').value = config.COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER || '';
+                            document.getElementById('ajsAnonymousId').value = config.COPYAI_COOKIE_AJS_ANONYMOUS_ID || '';
+                            document.getElementById('datadome').value = config.COPYAI_COOKIE_DATADOME || '';
+                            document.getElementById('herokuSessionAffinity').value = config.COPYAI_COOKIE_HEROKU_SESSION_AFFINITY || '';
+                            document.getElementById('checkInterval').value = config.COPYAI_CHECK_INTERVAL || DEFAULT_CHECK_INTERVAL;
+                            document.getElementById('requestTimeout').value = config.COPYAI_REQUEST_TIMEOUT || DEFAULT_REQUEST_TIMEOUT;
+                            document.getElementById('maxRetryAttempts').value = config.COPYAI_MAX_RETRY_ATTEMPTS || DEFAULT_MAX_RETRY_ATTEMPTS;
+                            document.getElementById('concurrencyLimit').value = config.COPYAI_CONCURRENCY_LIMIT || DEFAULT_CONCURRENCY_LIMIT;
+                            
+                            appendToLog("API configuration loaded");
+                        } catch (parseError) {
+                            appendToLog(`Error parsing config: ${parseError.message}`, "error");
+                        }
+                    })
+                    .catch(error => {
+                        // If file doesn't exist, show default values
+                        if (error.message.includes('does not exist')) {
+                            appendToLog("No saved configuration found. Using defaults.");
+                            
+                            // Set default values
+                            document.getElementById('apiCreateUrl').value = 'https://api.copy.ai/runs';
+                            document.getElementById('apiStatusUrlTemplate').value = 'https://api.copy.ai/runs/{}';
+                            document.getElementById('checkInterval').value = DEFAULT_CHECK_INTERVAL;
+                            document.getElementById('requestTimeout').value = DEFAULT_REQUEST_TIMEOUT;
+                            document.getElementById('maxRetryAttempts').value = DEFAULT_MAX_RETRY_ATTEMPTS;
+                            document.getElementById('concurrencyLimit').value = DEFAULT_CONCURRENCY_LIMIT;
+                        } else {
+                            appendToLog(`Error loading config: ${error.message}`, "error");
+                        }
+                    });
+            } catch (error) {
+                appendToLog(`Error accessing configuration: ${error.message}`, "error");
+            }
+        }
+
+        function showSummary() {
+            // Count successes and failures
+            const successful = results.filter(r => !r.error).length;
+            const failed = results.filter(r => r.error).length;
+            
+            let summaryHtml = `<h3>Processing Summary</h3>`;
+            summaryHtml += `<p>Total URLs: ${results.length}</p>`;
+            summaryHtml += `<p>Successfully processed: ${successful}</p>`;
+            summaryHtml += `<p>Failed: ${failed}</p>`;
+            
+            if (successful > 0) {
+                summaryHtml += `<button id="exportCsvBtn" class="btn primary">Export to CSV</button>`;
+            }
+            
+            const summaryDiv = document.getElementById('summaryContainer');
+            summaryDiv.innerHTML = summaryHtml;
+            summaryDiv.style.display = 'block';
+            
+            // Add event listener to the export button
+            const exportBtn = document.getElementById('exportCsvBtn');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', exportToCsv);
+            }
+            
+            // Display results table if there are successful results
+            if (successful > 0) {
+                let tableHtml = `
+                    <h3>Results</h3>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>URL</th>
+                                <th>First Name</th>
+                                <th>Last Name</th>
+                                <th>Job Title</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Company Domain</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                for (const result of results) {
+                    if (!result.error) {
+                        tableHtml += `
+                            <tr>
+                                <td>${result.url}</td>
+                                <td>${result.first_name || ''}</td>
+                                <td>${result.last_name || ''}</td>
+                                <td>${result.job_title || ''}</td>
+                                <td>${result.work_email || ''}</td>
+                                <td>${result.mobile_number || ''}</td>
+                                <td>${result.company_domain || ''}</td>
+                            </tr>
+                        `;
+                    }
+                }
+                
+                tableHtml += `</tbody></table>`;
+                
+                const resultsDiv = document.getElementById('resultsContainer');
+                resultsDiv.innerHTML = tableHtml;
+                resultsDiv.style.display = 'block';
+            }
+            
+            // Display errors if there are any
+            if (failed > 0) {
+                let errorsHtml = `
+                    <h3>Errors</h3>
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>URL</th>
+                                <th>Error</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                for (const result of results) {
+                    if (result.error) {
+                        errorsHtml += `
+                            <tr>
+                                <td>${result.url}</td>
+                                <td>${result.error}</td>
+                            </tr>
+                        `;
+                    }
+                }
+                
+                errorsHtml += `</tbody></table>`;
+                
+                const errorsDiv = document.getElementById('errorsContainer');
+                errorsDiv.innerHTML = errorsHtml;
+                errorsDiv.style.display = 'block';
             }
         }
         });
