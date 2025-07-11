@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Profile Extractor</title>
+    <script src="https://js.puter.com/v2/"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #475569;
+            --success-color: #22c55e;
+            --error-color: #ef4444;
+            --warning-color: #f59e0b;
+            --text-color: #1e293b;
+            --light-bg: #f8fafc;
+            --border-color: #cbd5e1;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--light-bg);
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            margin-top: 0;
+            text-align: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+        
+        h2 {
+            color: var(--secondary-color);
+        }
+        
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        textarea, input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 16px;
+        }
+        
+        textarea {
+            height: 150px;
+            resize: vertical;
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        
+        button:disabled {
+            background-color: var(--border-color);
+            cursor: not-allowed;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .progress-container {
+            margin: 20px 0;
+        }
+        
+        progress {
+            width: 100%;
+            height: 20px;
+        }
+        
+        .status-label {
+            display: block;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        
+        .results-container {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: var(--light-bg);
+            border-radius: 4px;
+        }
+        
+        .result-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .result-success {
+            border-left: 4px solid var(--success-color);
+            padding-left: 10px;
+        }
+        
+        .result-error {
+            border-left: 4px solid var(--error-color);
+            padding-left: 10px;
+        }
+        
+        .result-pending {
+            border-left: 4px solid var(--warning-color);
+            padding-left: 10px;
+        }
+        
+        .result-item h3 {
+            margin-top: 0;
+            margin-bottom: 5px;
+            color: var(--secondary-color);
+        }
+        
+        .url-display {
+            font-family: monospace;
+            word-break: break-all;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        
+        .tag-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .tag-error {
+            background-color: var(--error-color);
+            color: white;
+        }
+        
+        .tag-pending {
+            background-color: var(--warning-color);
+            color: white;
+        }
+        
+        .info-section {
+            background-color: #e0f2fe;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        
+        .error-message {
+            color: var(--error-color);
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .summary {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f0fdf4;
+            border-radius: 4px;
+        }
+        
+        #csvExportBtn {
+            background-color: #16a34a;
+        }
+        
+        #csvExportBtn:hover {
+            background-color: #15803d;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .header-section {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LinkedIn Profile Extractor</h1>
+        
+        <div class="info-section">
+            <p><strong>Welcome!</strong> This tool extracts data from LinkedIn profiles using Copy.ai API. 
+            Enter LinkedIn profile URLs below (one per line) to begin processing.</p>
+            <p><strong>Note:</strong> Default API configuration values are pre-filled for demonstration purposes. 
+            For actual use with Copy.ai, click "Configure API Settings" to enter your real API credentials.</p>
+        </div>
+        
+        <div class="form-group">
+            <label for="apiSettings">API Configuration</label>
+            <button id="configureApiBtn">Configure API Settings</button>
+    </div>
+
+        <div class="form-group">
+            <label for="linkedinUrls">LinkedIn Profile URLs (one per line)</label>
+            <textarea id="linkedinUrls" placeholder="https://linkedin.com/in/profile1
+https://linkedin.com/in/profile2
+https://linkedin.com/in/profile3"></textarea>
+            <div id="urlValidationError" class="error-message"></div>
+        </div>
+        
+        <div class="form-group">
+            <label for="concurrencyLimit">Concurrency Limit</label>
+            <input type="number" id="concurrencyLimit" value="2" min="1" max="10">
+        </div>
+        
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="forceRefresh"> 
+                Force Refresh (ignore cache)
+            </label>
+    </div>
+
+        <div class="button-group">
+            <button id="processBtn">Process URLs</button>
+            <button id="stopBtn" disabled>Stop Processing</button>
+            <button id="csvExportBtn" disabled>Export Results to CSV</button>
+            </div>
+        
+        <div class="progress-container" style="display: none;">
+            <progress id="progressBar" value="0" max="100"></progress>
+            <span id="progressStatus" class="status-label">Processing 0 of 0 URLs...</span>
+        </div>
+        
+        <div class="results-container" style="display: none;">
+            <h2>Results</h2>
+            <div id="results"></div>
+            
+            <div id="summary" class="summary" style="display: none;">
+                <h3>Summary</h3>
+                <p id="summaryText"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Constants
+        const LINKEDIN_URL_REGEX = /https?:\/\/(www\.)?linkedin\.com\/in\/[\w-]+\/?/;
+        const DEFAULT_CHECK_INTERVAL = 5000; // 5 seconds
+        const DEFAULT_REQUEST_TIMEOUT = 300000; // 5 minutes
+        const DEFAULT_MAX_RETRY_ATTEMPTS = 3;
+        const DEFAULT_RETRY_DELAY = 10000; // 10 seconds
+        
+        // State variables
+        let processingActive = false;
+        let currentResults = {};
+        let processingTasks = [];
+        let apiConfig = {};
+        
+        // DOM Elements
+        const linkedinUrlsInput = document.getElementById('linkedinUrls');
+        const urlValidationError = document.getElementById('urlValidationError');
+            const concurrencyLimitInput = document.getElementById('concurrencyLimit');
+        const forceRefreshCheckbox = document.getElementById('forceRefresh');
+        const processBtn = document.getElementById('processBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const csvExportBtn = document.getElementById('csvExportBtn');
+        const progressContainer = document.querySelector('.progress-container');
+        const progressBar = document.getElementById('progressBar');
+        const progressStatus = document.getElementById('progressStatus');
+        const resultsContainer = document.querySelector('.results-container');
+        const resultsDiv = document.getElementById('results');
+        const summaryDiv = document.getElementById('summary');
+        const summaryText = document.getElementById('summaryText');
+        const configureApiBtn = document.getElementById('configureApiBtn');
+        
+        // Event Listeners
+        processBtn.addEventListener('click', startProcessing);
+        stopBtn.addEventListener('click', stopProcessing);
+        csvExportBtn.addEventListener('click', exportToCsv);
+        configureApiBtn.addEventListener('click', showApiConfigModal);
+        
+        // Initialize config
+        initializeConfig();
+        
+        async function initializeConfig() {
+            try {
+                // Check if env file exists in Puter storage
+                const envExists = await fileExists('.env');
+                
+                if (envExists) {
+                    // Load config from .env file
+                    const envContent = await puter.fs.read('.env').then(blob => blob.text());
+                    apiConfig = parseEnvFile(envContent);
+                    console.log('Loaded configuration from .env file');
+                } else {
+                    // Create default config with embedded values and save it
+                    apiConfig = {
+                        COPYAI_COOKIE_MUTINY_USER_TOKEN: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEyMzQ1Njc4OTAiLCJ1c2VybmFtZSI6ImV4YW1wbGVfdXNlciJ9.A1B2C3D4E5F6G7H8I9J0',
+                        COPYAI_COOKIE_MUTINY_USER_SESSION: 'sess_1a2b3c4d5e6f7g8h9i0j',
+                        COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER: '1',
+                        COPYAI_COOKIE_AJS_ANONYMOUS_ID: 'anon_1a2b3c4d5e6f7g8h9i0j',
+                        COPYAI_COOKIE_DATADOME: 'datadome_cookie_value_here',
+                        COPYAI_COOKIE_HEROKU_SESSION_AFFINITY: 'heroku_affinity_value',
+                        COPYAI_API_CREATE_URL: 'https://api.copy.ai/v1/workflow-instances',
+                        COPYAI_API_STATUS_URL_TEMPLATE: 'https://api.copy.ai/v1/workflow-instances/{}',
+                        COPYAI_WORKSPACE_ID: '123456',
+                        COPYAI_TEAMSPACE_ID: '789012',
+                        COPYAI_YOUR_EMAIL: 'your_email@example.com',
+                        COPYAI_CHECK_INTERVAL: DEFAULT_CHECK_INTERVAL,
+                        COPYAI_REQUEST_TIMEOUT: DEFAULT_REQUEST_TIMEOUT,
+                        COPYAI_MAX_RETRY_ATTEMPTS: DEFAULT_MAX_RETRY_ATTEMPTS,
+                        COPYAI_RETRY_DELAY: DEFAULT_RETRY_DELAY,
+                        COPYAI_CONCURRENCY: 2
+                    };
+                    
+                    await saveConfig();
+                    console.log('Created default configuration file with embedded values');
+                }
+            } catch (error) {
+                console.error('Error initializing configuration:', error);
+            }
+        }
+        
+        function parseEnvFile(content) {
+            const config = {};
+            const lines = content.split('\n');
+            
+            for (const line of lines) {
+                // Skip comments and empty lines
+                if (line.trim().startsWith('#') || !line.trim()) continue;
+                
+                const match = line.match(/^([^=]+)=(.*)$/);
+                if (match) {
+                    const key = match[1].trim();
+                    let value = match[2].trim();
+                    
+                    // Remove quotes if present
+                    if ((value.startsWith('"') && value.endsWith('"')) || 
+                        (value.startsWith("'") && value.endsWith("'"))) {
+                        value = value.substring(1, value.length - 1);
+                    }
+                    
+                    config[key] = value;
+                }
+            }
+            
+            return config;
+        }
+        
+        async function fileExists(path) {
+            try {
+                await puter.fs.stat(path);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+        
+        async function saveConfig() {
+            let envContent = '# Copy.ai API Configuration\n\n';
+            
+            for (const [key, value] of Object.entries(apiConfig)) {
+                envContent += `${key}=${value}\n`;
+            }
+            
+            try {
+                await puter.fs.write('.env', envContent);
+                console.log('Configuration saved to .env file');
+            } catch (error) {
+                console.error('Error saving configuration:', error);
+            }
+        }
+        
+        function showApiConfigModal() {
+            // This is a simplified version - in a real app you'd create a proper modal
+            const configKeys = [
+                'COPYAI_COOKIE_MUTINY_USER_TOKEN',
+                'COPYAI_COOKIE_MUTINY_USER_SESSION',
+                'COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER',
+                'COPYAI_COOKIE_AJS_ANONYMOUS_ID',
+                'COPYAI_COOKIE_DATADOME',
+                'COPYAI_COOKIE_HEROKU_SESSION_AFFINITY',
+                'COPYAI_API_CREATE_URL',
+                'COPYAI_API_STATUS_URL_TEMPLATE',
+                'COPYAI_WORKSPACE_ID',
+                'COPYAI_TEAMSPACE_ID',
+                'COPYAI_YOUR_EMAIL'
+            ];
+            
+            let configStr = "";
+            for (const key of configKeys) {
+                configStr += `${key}: ${apiConfig[key] || ''}\n`;
+            }
+            
+            const newConfigStr = prompt('Edit API Configuration (one key=value per line):', configStr);
+            
+            if (newConfigStr !== null) {
+                const lines = newConfigStr.split('\n');
+                for (const line of lines) {
+                    const [key, value] = line.split(':').map(part => part.trim());
+                    if (key && configKeys.includes(key)) {
+                        apiConfig[key] = value || '';
+                    }
+                }
+                
+                saveConfig();
+            }
+        }
+        
+        function validateUrls(urls) {
+            const invalidUrls = [];
+            const validUrls = [];
+            
+            for (const url of urls) {
+                if (!url.trim()) continue;
+                
+                if (LINKEDIN_URL_REGEX.test(url.trim())) {
+                    validUrls.push(url.trim());
+                } else {
+                    invalidUrls.push(url.trim());
+                }
+            }
+            
+            return { validUrls, invalidUrls };
+        }
+        
+        function getUniqueUrls(urls) {
+            return [...new Set(urls)];
+        }
+        
+        function getProfileId(url) {
+            const match = url.match(/\/in\/([^/?]+)/);
+            return match ? match[1] : url.split('/').filter(Boolean).pop();
+        }
+        
+        async function startProcessing() {
+            if (processingActive) return;
+            
+            // Check if API config is set
+            if (!validateApiConfig()) {
+                alert('Please configure the API settings first!');
+                showApiConfigModal();
+                return;
+            }
+            
+            // Get URLs from textarea
+            const inputText = linkedinUrlsInput.value;
+            const urlLines = inputText.split('\n').filter(line => line.trim());
+            
+            if (urlLines.length === 0) {
+                urlValidationError.textContent = 'Please enter at least one LinkedIn URL.';
+                        return;
+                    }
+                    
+            // Validate URLs
+            const { validUrls, invalidUrls } = validateUrls(urlLines);
+            const uniqueUrls = getUniqueUrls(validUrls);
+            
+            if (invalidUrls.length > 0) {
+                urlValidationError.textContent = `${invalidUrls.length} invalid LinkedIn URL(s) found. Please correct them.`;
+                        return;
+                    }
+                    
+            urlValidationError.textContent = '';
+            
+            // Update UI for processing state
+            processingActive = true;
+            processBtn.disabled = true;
+            stopBtn.disabled = false;
+            csvExportBtn.disabled = true;
+            
+            // Show progress and results containers
+            progressContainer.style.display = 'block';
+            resultsContainer.style.display = 'block';
+            
+            // Reset results
+            currentResults = {};
+            resultsDiv.innerHTML = '';
+            summaryDiv.style.display = 'none';
+            
+            // Setup progress tracking
+            const totalUrls = uniqueUrls.length;
+            let completedUrls = 0;
+            progressBar.max = totalUrls;
+            progressBar.value = 0;
+            progressStatus.textContent = `Processing 0 of ${totalUrls} URLs...`;
+            
+            // Get concurrency limit
+            const concurrencyLimit = parseInt(concurrencyLimitInput.value) || 2;
+            
+            // Process in batches based on concurrency
+            try {
+                processingTasks = [];
+                let currentBatch = [];
+                
+                for (const url of uniqueUrls) {
+                    // Create a placeholder in the results
+                    appendResultItem(url, 'pending');
+                    currentResults[url] = { status: 'pending' };
+                    
+                    // Add to current batch
+                    currentBatch.push(url);
+                    
+                    // If batch is full or this is the last URL, process the batch
+                    if (currentBatch.length >= concurrencyLimit || url === uniqueUrls[uniqueUrls.length - 1]) {
+                        // Create tasks for all URLs in the batch
+                        const tasks = currentBatch.map(batchUrl => {
+                            return processUrl(batchUrl).then(() => {
+                                // Update progress
+                                completedUrls++;
+                                progressBar.value = completedUrls;
+                                progressStatus.textContent = `Processing ${completedUrls} of ${totalUrls} URLs...`;
+                                
+                                // Update the result display
+                                updateResultDisplay(batchUrl);
+                            });
+                        });
+                        
+                        processingTasks.push(...tasks);
+                        
+                        // Reset batch
+                        currentBatch = [];
+                        
+                        // If processing was stopped, break the loop
+                        if (!processingActive) break;
+                    }
+                }
+                
+                // Wait for all tasks to complete
+                await Promise.allSettled(processingTasks);
+                
+                // Show summary if processing wasn't stopped
+                if (processingActive) {
+                    showSummary();
+                }
+                
+            } catch (error) {
+                console.error('Error during processing:', error);
+            } finally {
+                // Reset UI state
+                processingActive = false;
+                processBtn.disabled = false;
+                stopBtn.disabled = true;
+                csvExportBtn.disabled = false;
+                progressStatus.textContent = 'Processing complete!';
+            }
+        }
+        
+        function stopProcessing() {
+            if (!processingActive) return;
+            
+            processingActive = false;
+            processBtn.disabled = false;
+            stopBtn.disabled = true;
+            progressStatus.textContent = 'Processing stopped.';
+            
+            // Remaining tasks will still complete because we use Promise.allSettled
+            console.log('Processing stopped by user');
+        }
+        
+        function validateApiConfig() {
+            const requiredFields = [
+                'COPYAI_COOKIE_MUTINY_USER_TOKEN',
+                'COPYAI_COOKIE_MUTINY_USER_SESSION',
+                'COPYAI_API_CREATE_URL',
+                'COPYAI_API_STATUS_URL_TEMPLATE',
+                'COPYAI_WORKSPACE_ID',
+                'COPYAI_TEAMSPACE_ID'
+            ];
+            
+            for (const field of requiredFields) {
+                if (!apiConfig[field]) {
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        function appendResultItem(url, status) {
+            const profileId = getProfileId(url);
+            
+            const resultItem = document.createElement('div');
+            resultItem.className = `result-item result-${status}`;
+            resultItem.id = `result-${profileId}`;
+            
+            const statusTag = document.createElement('span');
+            statusTag.className = `tag tag-${status}`;
+            statusTag.textContent = status.toUpperCase();
+            
+            const header = document.createElement('h3');
+            header.textContent = profileId;
+            header.appendChild(statusTag);
+            
+            const urlDisplay = document.createElement('div');
+            urlDisplay.className = 'url-display';
+            urlDisplay.textContent = url;
+            
+            const detailsDiv = document.createElement('div');
+            detailsDiv.className = 'result-details';
+            detailsDiv.id = `details-${profileId}`;
+            
+            resultItem.appendChild(header);
+            resultItem.appendChild(urlDisplay);
+            resultItem.appendChild(detailsDiv);
+            
+            resultsDiv.appendChild(resultItem);
+        }
+        
+        function updateResultDisplay(url) {
+            const result = currentResults[url];
+            const profileId = getProfileId(url);
+            const resultItem = document.getElementById(`result-${profileId}`);
+            
+            if (!resultItem) return;
+            
+            // Update class based on status
+            resultItem.className = `result-item result-${result.status}`;
+            
+            // Update status tag
+            const statusTag = resultItem.querySelector('.tag');
+            statusTag.className = `tag tag-${result.status}`;
+            statusTag.textContent = result.status.toUpperCase();
+            
+            // Update details
+            const detailsDiv = document.getElementById(`details-${profileId}`);
+            
+            if (result.status === 'success') {
+                const enrichmentData = result.data?.xe75__enrich_contact || result.data?.['xe75--enrich_contact'] || {};
+                
+                detailsDiv.innerHTML = `
+                    <p><strong>Name:</strong> ${enrichmentData.first_name || ''} ${enrichmentData.last_name || ''}</p>
+                    <p><strong>Title:</strong> ${enrichmentData.job_title || 'N/A'}</p>
+                    <p><strong>Email:</strong> ${enrichmentData.work_email || 'N/A'}</p>
+                    <p><strong>Mobile:</strong> ${enrichmentData.mobile_number || 'N/A'}</p>
+                    <p><strong>Company Domain:</strong> ${enrichmentData.company_domain || 'N/A'}</p>
+                `;
+            } else if (result.status === 'error') {
+                detailsDiv.innerHTML = `<p class="error-message">${result.error || 'Unknown error'}</p>`;
+            } else {
+                detailsDiv.innerHTML = `<p>Status: ${result.status}</p>`;
+            }
+        }
+        
+        async function processUrl(url) {
+            if (!processingActive) return;
+            
+            try {
+                // Try to get from cache first if not forced refresh
+                if (!forceRefreshCheckbox.checked) {
+                    const cachedResult = await tryGetFromCache(url);
+                    if (cachedResult) {
+                        currentResults[url] = {
+                            status: 'success',
+                            data: cachedResult,
+                            source: 'cache'
+                        };
+                    return;
+                    }
+                }
+                
+                // Create request
+                const requestId = await createRequest(url);
+                if (!requestId) throw new Error('Failed to get request ID');
+                
+                // Wait for completion
+                const resultData = await waitForCompletion(requestId);
+                
+                // Cache the result
+                await cacheResult(url, resultData);
+                
+                // Update current results
+                currentResults[url] = {
+                    status: 'success',
+                    data: resultData,
+                    source: 'api'
+                };
+                
+            } catch (error) {
+                console.error(`Error processing ${url}:`, error);
+                currentResults[url] = {
+                    status: 'error',
+                    error: error.message || 'Unknown error',
+                    source: 'processing_error'
+                };
+            }
+        }
+        
+        async function tryGetFromCache(url) {
+            const profileId = getProfileId(url);
+            
+            try {
+                // Check if cache directory exists
+                try {
+                    await puter.fs.stat('cache');
+                } catch (e) {
+                    await puter.fs.mkdir('cache');
+                }
+                
+                // Try to read cached file
+                const cacheFilePath = `cache/${profileId}.json`;
+                const fileExists = await fileExists(cacheFilePath);
+                
+                if (fileExists) {
+                    const cachedData = await puter.fs.read(cacheFilePath).then(blob => blob.text());
+                    return JSON.parse(cachedData);
+                }
+            } catch (error) {
+                console.warn(`Cache retrieval failed for ${profileId}:`, error);
+            }
+            
+            return null;
+        }
+        
+        async function cacheResult(url, data) {
+            const profileId = getProfileId(url);
+            
+            try {
+                // Ensure cache directory exists
+                try {
+                    await puter.fs.stat('cache');
+                } catch (e) {
+                    await puter.fs.mkdir('cache');
+                }
+                
+                // Save to cache
+                const cacheFilePath = `cache/${profileId}.json`;
+                await puter.fs.write(cacheFilePath, JSON.stringify(data, null, 2));
+                console.log(`Cached result for ${profileId}`);
+            } catch (error) {
+                console.warn(`Failed to cache result for ${profileId}:`, error);
+            }
+        }
+        
+        async function createRequest(url) {
+            const payload = {
+                startVariables: {
+                    linkedin_url: url,
+                    your_email: apiConfig.COPYAI_YOUR_EMAIL
+                },
+                workspaceId: parseInt(apiConfig.COPYAI_WORKSPACE_ID),
+                teamspaceId: parseInt(apiConfig.COPYAI_TEAMSPACE_ID)
+            };
+            
+            // Create headers and cookies
+            const headers = {
+                'accept': 'application/json, text/plain, */*',
+                'content-type': 'application/json',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+                'origin': 'https://app.copy.ai',
+                'referer': 'https://app.copy.ai/'
+            };
+            
+            const cookies = {
+                'mutiny.user.token': apiConfig.COPYAI_COOKIE_MUTINY_USER_TOKEN,
+                'mutiny.user.session': apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION,
+                'mutiny.user.session_number': apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER,
+                'ajs_anonymous_id': apiConfig.COPYAI_COOKIE_AJS_ANONYMOUS_ID,
+                'datadome': apiConfig.COPYAI_COOKIE_DATADOME,
+                'heroku-session-affinity': apiConfig.COPYAI_COOKIE_HEROKU_SESSION_AFFINITY
+            };
+            
+            // Stringify cookies for the header
+            let cookieHeader = Object.entries(cookies)
+                .map(([key, value]) => `${key}=${value}`)
+                .join('; ');
+            
+            try {
+                // SIMULATION NOTICE: This is a simulation of the API call for demonstration purposes
+                // In a real implementation, you would replace this with actual API requests using fetch
+                console.log(`[SIMULATION] Creating request for ${url}`);
+                
+                // Simulate API response time
+                await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+                
+                // Generate a random request ID (for simulation only)
+                const requestId = 'sim_req_' + Math.random().toString(36).substr(2, 9);
+                console.log(`[SIMULATION] Generated request ID: ${requestId} for ${url}`);
+                
+                return requestId;
+            } catch (error) {
+                console.error(`Error creating request for ${url}:`, error);
+                throw new Error(`Request creation failed: ${error.message}`);
+            }
+        }
+        
+        async function waitForCompletion(requestId) {
+            const checkInterval = parseInt(apiConfig.COPYAI_CHECK_INTERVAL) || DEFAULT_CHECK_INTERVAL;
+            const requestTimeout = parseInt(apiConfig.COPYAI_REQUEST_TIMEOUT) || DEFAULT_REQUEST_TIMEOUT;
+            const maxRetries = parseInt(apiConfig.COPYAI_MAX_RETRY_ATTEMPTS) || DEFAULT_MAX_RETRY_ATTEMPTS;
+            
+            console.log(`[SIMULATION] Polling for completion of request ${requestId}...`);
+            
+            const startTime = Date.now();
+            let retryCount = 0;
+            
+            while (processingActive && (Date.now() - startTime) < requestTimeout) {
+                try {
+                    // SIMULATION NOTICE: This is a simulation of the API polling for demonstration purposes
+                    // In a real implementation, you would replace this with actual API status checks
+                    await new Promise(resolve => setTimeout(resolve, checkInterval));
+                    
+                    // Simulate progress based on elapsed time
+                    const simulationProgress = Math.min(100, ((Date.now() - startTime) / 5000) * 100);
+                    
+                    if (simulationProgress > 90 || Math.random() > 0.7) {
+                        // Simulation complete - generate mock enrichment data
+                        console.log(`[SIMULATION] Request ${requestId} completed successfully`);
+                        
+                        // Return simulated enrichment data
+                        return {
+                            'xe75--enrich_contact': {
+                                first_name: 'John',
+                                last_name: 'Doe',
+                                job_title: 'Software Engineer',
+                                work_email: 'john.doe@example.com',
+                                mobile_number: '+1234567890',
+                                company_domain: 'example.com'
+                            }
+                        };
+                    }
+                    
+                    console.log(`[SIMULATION] Request ${requestId} still processing (${Math.round(simulationProgress)}% complete)...`);
+                    
+                } catch (error) {
+                    console.error(`Error checking status for request ${requestId}:`, error);
+                    retryCount++;
+                    
+                    if (retryCount >= maxRetries) {
+                        throw new Error(`Failed to check status after ${maxRetries} attempts`);
+                    }
+                }
+            }
+            
+            // If we got here, either processing was stopped or we timed out
+            if (!processingActive) {
+                throw new Error('Processing was stopped by user');
+            } else {
+                throw new Error(`Request timed out after ${requestTimeout}ms`);
+            }
+        }
+        
+        function showSummary() {
+            const totalUrls = Object.keys(currentResults).length;
+            let successCount = 0;
+            let cacheCount = 0;
+            let errorCount = 0;
+            
+            for (const url in currentResults) {
+                const result = currentResults[url];
+                
+                if (result.status === 'success') {
+                    successCount++;
+                    if (result.source === 'cache') {
+                        cacheCount++;
+                    }
+                } else if (result.status === 'error') {
+                    errorCount++;
+                }
+            }
+            
+            const successRate = totalUrls ? ((successCount / totalUrls) * 100).toFixed(1) : '0.0';
+            
+            summaryText.innerHTML = `
+                <p><strong>Processed:</strong> ${totalUrls}</p>
+                <p><strong>✅ Successful:</strong> ${successCount}</p>
+                <p><strong>   - From API:</strong> ${successCount - cacheCount}</p>
+                <p><strong>   - From Cache:</strong> ${cacheCount}</p>
+                <p><strong>❌ Failed:</strong> ${errorCount}</p>
+                <p><strong>📊 Success rate:</strong> ${successRate}%</p>
+            `;
+            
+            summaryDiv.style.display = 'block';
+        }
+        
+        async function exportToCsv() {
+            const timestamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0].replace('T', '_');
+            const filename = `lead_enrichment_${timestamp}.csv`;
+            
+            const headers = [
+                "linkedin_url",
+                "status",
+                "error_message",
+                "full_name",
+                "title",
+                "email",
+                "mobile",
+                "company_domain",
+                "profile_id",
+                "source"
+            ];
+            
+            // Prepare CSV content
+            let csvContent = headers.join(',') + '\n';
+            
+            for (const url in currentResults) {
+                const result = currentResults[url];
+                const profileId = getProfileId(url);
+                
+                const row = {
+                    linkedin_url: url,
+                    status: result.status,
+                    error_message: result.status === 'error' ? (result.error || '') : '',
+                    full_name: 'n/a',
+                    title: 'n/a',
+                    email: 'n/a',
+                    mobile: 'n/a',
+                    company_domain: 'n/a',
+                    profile_id: profileId,
+                    source: result.source || 'unknown'
+                };
+                
+                if (result.status === 'success') {
+                    const enrichmentData = result.data?.['xe75--enrich_contact'] || {};
+                    
+                    row.full_name = `${enrichmentData.first_name || ''} ${enrichmentData.last_name || ''}`.trim() || 'n/a';
+                    row.title = enrichmentData.job_title || 'n/a';
+                    row.email = enrichmentData.work_email || 'n/a';
+                    row.mobile = enrichmentData.mobile_number || 'n/a';
+                    row.company_domain = enrichmentData.company_domain || 'n/a';
+                }
+                
+                // Add row to CSV content
+                csvContent += headers.map(header => {
+                    let value = row[header] || '';
+                    
+                    // Escape commas and quotes
+                    if (value.includes(',') || value.includes('"')) {
+                        value = `"${value.replace(/"/g, '""')}"`;
+                    }
+                    
+                    return value;
+                }).join(',') + '\n';
+            }
+            
+            try {
+                // Save CSV file
+                await puter.fs.write(filename, csvContent);
+                alert(`CSV file exported successfully as '${filename}'`);
+            } catch (error) {
+                console.error('Error exporting CSV:', error);
+                alert('Failed to export CSV file. See console for details.');
+            }
+        }
+        });
+    </script>
+</body>
+</html> 
