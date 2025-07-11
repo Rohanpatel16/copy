@@ -809,17 +809,35 @@ https://linkedin.com/in/profile3"></textarea>
                 .join('; ');
             
             try {
-                // SIMULATION NOTICE: This is a simulation of the API call for demonstration purposes
-                // In a real implementation, you would replace this with actual API requests using fetch
-                console.log(`[SIMULATION] Creating request for ${url}`);
+                // Make an actual API call to Copy.ai
+                console.log(`Creating request for ${url}`);
                 
-                // Simulate API response time
-                await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+                // Use a CORS proxy to bypass CORS restrictions
+                const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+                const apiUrl = apiConfig.COPYAI_API_CREATE_URL;
                 
-                // Generate a random request ID (for simulation only)
-                const requestId = 'sim_req_' + Math.random().toString(36).substr(2, 9);
-                console.log(`[SIMULATION] Generated request ID: ${requestId} for ${url}`);
+                const response = await fetch(corsProxy + apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        ...headers,
+                        'Cookie': cookieHeader,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify(payload)
+                });
                 
+                if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}: ${await response.text()}`);
+                }
+                
+                const responseData = await response.json();
+                const requestId = responseData.data?.id;
+                
+                if (!requestId) {
+                    throw new Error('Failed to get request ID from API response');
+                }
+                
+                console.log(`Received request ID: ${requestId} for ${url}`);
                 return requestId;
             } catch (error) {
                 console.error(`Error creating request for ${url}:`, error);
@@ -832,45 +850,78 @@ https://linkedin.com/in/profile3"></textarea>
             const requestTimeout = parseInt(apiConfig.COPYAI_REQUEST_TIMEOUT) || DEFAULT_REQUEST_TIMEOUT;
             const maxRetries = parseInt(apiConfig.COPYAI_MAX_RETRY_ATTEMPTS) || DEFAULT_MAX_RETRY_ATTEMPTS;
             
-            console.log(`[SIMULATION] Polling for completion of request ${requestId}...`);
+            console.log(`Polling for completion of request ${requestId}...`);
+            
+            // Use a CORS proxy to bypass CORS restrictions
+            const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+            const statusUrl = apiConfig.COPYAI_API_STATUS_URL_TEMPLATE.replace('{}', requestId);
+            
+            // Create headers and cookies
+            const headers = {
+                'accept': 'application/json, text/plain, */*',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+                'origin': 'https://app.copy.ai',
+                'referer': 'https://app.copy.ai/',
+                'X-Requested-With': 'XMLHttpRequest'
+            };
+            
+            const cookies = {
+                'mutiny.user.token': apiConfig.COPYAI_COOKIE_MUTINY_USER_TOKEN,
+                'mutiny.user.session': apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION,
+                'mutiny.user.session_number': apiConfig.COPYAI_COOKIE_MUTINY_USER_SESSION_NUMBER,
+                'ajs_anonymous_id': apiConfig.COPYAI_COOKIE_AJS_ANONYMOUS_ID,
+                'datadome': apiConfig.COPYAI_COOKIE_DATADOME,
+                'heroku-session-affinity': apiConfig.COPYAI_COOKIE_HEROKU_SESSION_AFFINITY
+            };
+            
+            // Stringify cookies for the header
+            let cookieHeader = Object.entries(cookies)
+                .map(([key, value]) => `${key}=${value}`)
+                .join('; ');
             
             const startTime = Date.now();
             let retryCount = 0;
             
             while (processingActive && (Date.now() - startTime) < requestTimeout) {
                 try {
-                    // SIMULATION NOTICE: This is a simulation of the API polling for demonstration purposes
-                    // In a real implementation, you would replace this with actual API status checks
+                    // Wait for the check interval before polling again
                     await new Promise(resolve => setTimeout(resolve, checkInterval));
                     
-                    // Simulate progress based on elapsed time
-                    const simulationProgress = Math.min(100, ((Date.now() - startTime) / 5000) * 100);
+                    // Make the API call to check status
+                    const response = await fetch(corsProxy + statusUrl, {
+                        headers: {
+                            ...headers,
+                            'Cookie': cookieHeader
+                        }
+                    });
                     
-                    if (simulationProgress > 90 || Math.random() > 0.7) {
-                        // Simulation complete - generate mock enrichment data
-                        console.log(`[SIMULATION] Request ${requestId} completed successfully`);
-                        
-                        // Return simulated enrichment data
-                        return {
-                            'xe75--enrich_contact': {
-                                first_name: 'John',
-                                last_name: 'Doe',
-                                job_title: 'Software Engineer',
-                                work_email: 'john.doe@example.com',
-                                mobile_number: '+1234567890',
-                                company_domain: 'example.com'
-                            }
-                        };
+                    if (!response.ok) {
+                        console.error(`Error checking status: ${response.status}`);
+                        retryCount++;
+                        if (retryCount >= maxRetries) {
+                            throw new Error(`Failed to check status after ${maxRetries} attempts`);
+                        }
+                        continue;
                     }
                     
-                    console.log(`[SIMULATION] Request ${requestId} still processing (${Math.round(simulationProgress)}% complete)...`);
+                    const statusData = await response.json();
+                    const status = statusData.data?.status;
+                    
+                    if (status === 'COMPLETE') {
+                        console.log(`Request ${requestId} completed successfully`);
+                        return statusData.data?.output || statusData.data;
+                    } else if (status === 'FAILED') {
+                        throw new Error(`API processing failed: ${statusData.data?.error || 'Unknown error'}`);
+                    } else {
+                        console.log(`Request ${requestId} status: ${status}`);
+                    }
                     
                 } catch (error) {
                     console.error(`Error checking status for request ${requestId}:`, error);
                     retryCount++;
                     
                     if (retryCount >= maxRetries) {
-                        throw new Error(`Failed to check status after ${maxRetries} attempts`);
+                        throw new Error(`Failed to check status after ${maxRetries} attempts: ${error.message}`);
                     }
                 }
             }
