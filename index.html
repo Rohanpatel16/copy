@@ -3,6 +3,373 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recruiter's AI Assistant - Structured JSON Output</title>
+    
+    <!-- PDF.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <!-- Google AI SDK -->
+    <script type="module">
+        import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+        window.GoogleGenerativeAI = GoogleGenerativeAI;
+    </script>
+    
+    <style>
+        :root {
+            --primary-color: #4a69bd;
+            --secondary-color: #1abc9c;
+            --dark-color: #2c3e50;
+            --light-bg: #f8f9ff;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --success-color: #2ecc71;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 1200px; width: 100%; padding: 40px;
+        }
+        
+        h1 { color: var(--dark-color); margin-bottom: 10px; font-size: 2em; text-align: center; }
+        .subtitle { text-align: center; color: #555; margin-bottom: 30px; }
+        
+        .api-key-container { background: var(--light-bg); padding: 25px; border-radius: 15px; margin-bottom: 20px; text-align: center; }
+        .api-key-container input { width: 100%; max-width: 400px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-right: 10px; }
+        .api-key-container button { padding: 12px 20px; font-weight: 600; }
+
+        .upload-area { border: 3px dashed var(--secondary-color); border-radius: 15px; padding: 40px; text-align: center; background: #f8f9ff; transition: all 0.3s ease; cursor: pointer; margin-bottom: 30px; }
+        .upload-area:hover { border-color: var(--primary-color); background: #f0f2ff; }
+        .upload-icon { font-size: 48px; color: var(--secondary-color); margin-bottom: 15px; }
+        input[type="file"] { display: none; }
+        
+        .progress-container { display: none; margin-bottom: 30px; }
+        .progress-bar { width: 100%; height: 30px; background: #f0f0f0; border-radius: 15px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--secondary-color), var(--primary-color)); border-radius: 15px; width: 0%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+        .status-message { text-align: center; margin-top: 10px; color: #666; font-size: 14px; }
+        
+        .results-container { display: none; }
+        .main-layout { display: grid; grid-template-columns: 300px 1fr; gap: 30px; }
+        .ai-actions-panel { background: var(--light-bg); border-radius: 15px; padding: 20px; }
+        .ai-actions-title { font-size: 1.2em; color: var(--dark-color); margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #eee; }
+        .action-button { display: block; width: 100%; padding: 15px; margin-bottom: 10px; border: none; border-radius: 8px; background: #fff; color: #333; font-size: 15px; font-weight: 600; text-align: left; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .action-button:hover, .action-button.loading { background: var(--secondary-color); color: white; transform: translateX(5px); }
+        .action-button.loading { cursor: not-allowed; animation: pulse 1.5s infinite; }
+
+        .output-panel { min-height: 400px; }
+        .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .results-title { font-size: 1.5em; color: #333; }
+        
+        .btn { padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.3s ease; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(74, 105, 189, 0.4); }
+        .btn-secondary { background: #f0f0f0; color: #666; }
+        .btn-secondary.active { background: var(--dark-color); color: white; }
+        .btn-danger { background: var(--danger-color); color: white; }
+        
+        .text-output { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px; height: 500px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 15px; line-height: 1.7; }
+        .json-renderer h3 { color: var(--dark-color); border-bottom: 2px solid var(--secondary-color); padding-bottom: 5px; margin: 20px 0 10px 0; font-size: 1.2em; }
+        .json-renderer p { margin-bottom: 10px; }
+        .json-renderer .summary-block { background: #e9f7ef; padding: 15px; border-left: 4px solid var(--success-color); border-radius: 5px; margin-bottom: 15px; }
+        .json-renderer ul { list-style: none; padding: 0; }
+        .json-renderer li { display: flex; align-items: flex-start; margin-bottom: 8px; }
+        .json-renderer li::before { content: '✓'; color: var(--success-color); font-weight: bold; margin-right: 10px; }
+        .json-renderer .red-flags li::before { content: '⚠️'; color: var(--warning-color); }
+        .json-renderer .email-template { background: #eaf2f8; padding: 15px; border-left: 4px solid var(--primary-color); border-radius: 8px; white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; }
+        .bottom-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        
+        .info-box { background: #e7f3ff; border-left: 4px solid #3498db; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+        .info-box p { color: #555; font-size: 14px; margin: 5px 0; }
+        .info-box a { color: var(--primary-color); font-weight: bold; }
+        .error-message { background: #fee; color: #c00; padding: 15px; border-radius: 10px; margin-top: 20px; display: none; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Recruiter's AI Assistant</h1>
+        <p class="subtitle">Structured resume analysis with Google's Gemini AI</p>
+
+        <div id="apiKeyContainer" class="api-key-container">
+            <h3>Enter Your Google AI API Key</h3>
+            <p style="font-size: 14px; color: #666; margin: 10px 0;">Your key is stored only in your browser and is never shared.</p>
+            <input type="password" id="apiKeyInput" placeholder="Enter your Gemini API Key">
+            <button class="btn btn-primary" id="saveApiKeyBtn">Save Key</button>
+            <p style="font-size: 12px; margin-top: 15px;"><a href="https://aistudio.google.com/app/apikey" target="_blank">Get your API key from Google AI Studio</a></p>
+        </div>
+        
+        <div id="mainContent" style="display: none;">
+            <div class="info-box">
+                <p>🚀 <strong>AI Model:</strong> Using <strong>gemini-2.5-flash-lite</strong> with structured JSON output.</p>
+            </div>
+            
+            <div class="upload-area" id="uploadArea"><div class="upload-icon">📄</div><div class="upload-text">Click to upload or drag & drop a resume (PDF)</div><input type="file" id="fileInput" accept=".pdf"></div>
+            
+            <div class="progress-container" id="progressContainer"><div class="progress-bar"><div class="progress-fill" id="progressFill">0%</div></div><div class="status-message" id="statusMessage">Initializing...</div></div>
+        </div>
+
+        <div class="results-container" id="resultsContainer">
+            <div class="main-layout">
+                <div class="ai-actions-panel">
+                    <h3 class="ai-actions-title">AI Analysis Actions</h3>
+                    <button class="action-button" id="btn-redFlags" onclick="runAIAnalysis('redFlags')">🔍 Screen for Issues & Red Flags</button>
+                    <button class="action-button" id="btn-summary" onclick="runAIAnalysis('summary')">📝 Generate Candidate Summary</button>
+                    <button class="action-button" id="btn-questions" onclick="runAIAnalysis('questions')">❓ Generate Interview Questions</button>
+                    <button class="action-button" id="btn-email" onclick="runAIAnalysis('email')">📧 Draft Outreach Email</button>
+                </div>
+                <div class="output-panel">
+                    <div class="results-header">
+                        <div class="results-title" id="resultsTitle">AI Insights</div>
+                        <div><button class="btn btn-secondary active" id="aiViewBtn">AI Insights</button><button class="btn btn-secondary" id="textViewBtn">Raw Text</button></div>
+                    </div>
+                    <div class="text-output" id="textOutput"></div>
+                     <div class="bottom-actions">
+                        <button class="btn btn-secondary" onclick="copyText()">📋 Copy Insights</button>
+                        <button class="btn btn-primary" onclick="resetUpload()">+ Upload New Resume</button>
+                        <button class="btn btn-danger" id="resetApiKeyBtn">Reset API Key</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+    </div>
+    
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        let extractedText = '';
+        let aiInsightsCache = {};
+        let currentView = 'ai';
+        let genAI, aiModel;
+
+        const ui = {
+            apiKeyContainer: document.getElementById('apiKeyContainer'),
+            mainContent: document.getElementById('mainContent'),
+            apiKeyInput: document.getElementById('apiKeyInput'),
+            saveApiKeyBtn: document.getElementById('saveApiKeyBtn'),
+            resetApiKeyBtn: document.getElementById('resetApiKeyBtn'),
+            uploadArea: document.getElementById('uploadArea'),
+            fileInput: document.getElementById('fileInput'),
+            progressContainer: document.getElementById('progressContainer'),
+            progressFill: document.getElementById('progressFill'),
+            statusMessage: document.getElementById('statusMessage'),
+            resultsContainer: document.getElementById('resultsContainer'),
+            textOutput: document.getElementById('textOutput'),
+            errorMessage: document.getElementById('errorMessage'),
+            resultsTitle: document.getElementById('resultsTitle'),
+            aiViewBtn: document.getElementById('aiViewBtn'),
+            textViewBtn: document.getElementById('textViewBtn')
+        };
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const apiKey = localStorage.getItem('geminiApiKey');
+            if (apiKey) initializeAI(apiKey);
+            else { ui.apiKeyContainer.style.display = 'block'; ui.mainContent.style.display = 'none'; }
+        });
+
+        ui.saveApiKeyBtn.addEventListener('click', () => {
+            const apiKey = ui.apiKeyInput.value.trim();
+            if (apiKey) { localStorage.setItem('geminiApiKey', apiKey); initializeAI(apiKey); } 
+            else { showError("Please enter a valid API key."); }
+        });
+
+        ui.resetApiKeyBtn.addEventListener('click', () => {
+            if (confirm("Are you sure?")) { localStorage.removeItem('geminiApiKey'); location.reload(); }
+        });
+
+        function initializeAI(apiKey) {
+            try {
+                genAI = new window.GoogleGenerativeAI(apiKey);
+                aiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+                ui.apiKeyContainer.style.display = 'none';
+                ui.mainContent.style.display = 'block';
+                hideError();
+            } catch (error) {
+                showError("Failed to initialize AI. The API key might be invalid.");
+                localStorage.removeItem('geminiApiKey');
+            }
+        }
+
+        ui.uploadArea.addEventListener('click', () => ui.fileInput.click());
+        ui.fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
+        ui.aiViewBtn.addEventListener('click', showAIView);
+        ui.textViewBtn.addEventListener('click', showTextView);
+        
+        async function handleFile(file) {
+            if (file.type !== 'application/pdf') { showError('Please upload a valid PDF file'); return; }
+            hideError(); showProgress();
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                extractedText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    updateProgress((i - 1) / pdf.numPages * 100, `Extracting text from page ${i}...`);
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    extractedText += textContent.items.map(item => item.str).join(' ');
+                }
+                displayResults();
+            } catch (error) { showError('Error processing PDF: ' + error.message); hideProgress(); }
+        }
+        
+        function displayResults() {
+            hideProgress();
+            ui.resultsContainer.style.display = 'block';
+            aiInsightsCache = {};
+            runAIAnalysis('summary');
+        }
+
+        async function runAIAnalysis(type) {
+            if (!aiModel) { showError("AI not initialized. Check API Key."); return; }
+            if (aiInsightsCache[type]) { renderJsonResponse(aiInsightsCache[type], type); return; }
+
+            document.querySelectorAll('.action-button').forEach(btn => btn.classList.add('loading'));
+            updateStatus('Generating structured insights with Google AI...');
+            ui.textOutput.innerHTML = '<p>Contacting Gemini and awaiting structured JSON response...</p>';
+            showAIView();
+            updateTitles(type);
+
+            const prompt = getAIPrompt(extractedText, type);
+
+            try {
+                const result = await aiModel.generateContent({
+                    contents: [{ role: "user", parts: [{ text: prompt }] }],
+                    generationConfig: { responseMimeType: "application/json" }
+                });
+                const responseText = result.response.text();
+                const jsonResponse = JSON.parse(responseText);
+                
+                aiInsightsCache[type] = jsonResponse;
+                renderJsonResponse(jsonResponse, type);
+
+            } catch (error) {
+                console.error("AI Error:", error);
+                showError("Error generating or parsing AI response. The model may have failed to produce valid JSON. Details: " + error.message);
+                ui.textOutput.innerHTML = `<p><strong>Error:</strong> The AI response could not be processed. Please try again.</p><pre>${error}</pre>`;
+            } finally {
+                document.querySelectorAll('.action-button').forEach(btn => btn.classList.remove('loading'));
+                updateStatus('');
+            }
+        }
+
+        function getAIPrompt(text, analysisType) {
+            const baseIntro = `You are an expert Senior Technical Recruiter. Analyze the following resume text and return a response ONLY in the specified JSON format. Do not include any text outside of the JSON structure. Resume text is:\n---\n${text}\n---\n\n`;
+
+            switch (analysisType) {
+                case 'redFlags':
+                    return baseIntro + `Format your response as a JSON object with three keys: "analysis_summary" (a string with a brief overall assessment), "red_flags" (an array of strings detailing potential issues), and "strengths" (an array of strings highlighting positive aspects). If no flags are found, the "red_flags" array should be empty.`;
+                case 'summary':
+                    return baseIntro + `Format your response as a JSON object with three keys: "candidate_name" (a string for the candidate's full name, or "Not Found"), "professional_summary" (a 2-3 sentence string summarizing their profile), and "key_skills" (an array of strings of their most important skills).`;
+                case 'questions':
+                    return baseIntro + `Format your response as a JSON object with two keys: "behavioral_questions" (an array of strings for behavioral/situational questions) and "technical_questions" (an array of strings for technical questions based on their skills). Provide 3-4 questions for each category.`;
+                case 'email':
+                    return baseIntro + `Format your response as a JSON object with three keys: "recipient_name" (a string with the candidate's inferred name), "subject" (a string for a compelling subject line), and "body" (a string for the email content, using placeholders like [Job Role], [Your Company Name], and [Your Name]).`;
+            }
+        }
+
+        function renderJsonResponse(data, type) {
+            let html = '<div class="json-renderer">';
+            updateTitles(type);
+
+            switch (type) {
+                case 'redFlags':
+                    html += `<div class="summary-block"><strong>Analysis Summary:</strong> ${data.analysis_summary || 'N/A'}</div>`;
+                    if (data.strengths && data.strengths.length > 0) {
+                        html += `<h3>Strengths</h3><ul>${data.strengths.map(s => `<li>${s}</li>`).join('')}</ul>`;
+                    }
+                    if (data.red_flags && data.red_flags.length > 0) {
+                        html += `<h3 style="color:var(--warning-color);">Potential Red Flags</h3><ul class="red-flags">${data.red_flags.map(f => `<li>${f}</li>`).join('')}</ul>`;
+                    } else {
+                        html += `<h3>Potential Red Flags</h3><p>No significant red flags were detected.</p>`;
+                    }
+                    break;
+                case 'summary':
+                    html += `<h3>Candidate Summary</h3>`;
+                    html += `<div class="summary-block"><strong>Name:</strong> ${data.candidate_name || 'N/A'}<br><strong>Summary:</strong> ${data.professional_summary || 'N/A'}</div>`;
+                    if (data.key_skills && data.key_skills.length > 0) {
+                        html += `<h3>Key Skills Identified</h3><ul>${data.key_skills.map(s => `<li>${s}</li>`).join('')}</ul>`;
+                    }
+                    break;
+                case 'questions':
+                    if (data.behavioral_questions && data.behavioral_questions.length > 0) {
+                        html += `<h3>Behavioral Questions</h3><ul>${data.behavioral_questions.map(q => `<li>${q}</li>`).join('')}</ul>`;
+                    }
+                    if (data.technical_questions && data.technical_questions.length > 0) {
+                        html += `<h3>Technical Questions</h3><ul>${data.technical_questions.map(q => `<li>${q}</li>`).join('')}</ul>`;
+                    }
+                    break;
+                case 'email':
+                    html += `<h3>Outreach Email Draft</h3>`;
+                    html += `<div class="email-template"><strong>To:</strong> ${data.recipient_name || 'Candidate'}<br><strong>Subject:</strong> ${data.subject || 'Opportunity at [Your Company Name]'}<br><br>${data.body || 'Email body not generated.'}</div>`;
+                    break;
+            }
+            ui.textOutput.innerHTML = html + '</div>';
+        }
+        
+        function updateTitles(type) {
+            const titles = { redFlags: 'Issues & Red Flags', summary: 'Candidate Summary', questions: 'Interview Questions', email: 'Outreach Email Draft' };
+            ui.resultsTitle.textContent = titles[type] || 'AI Insights';
+        }
+
+        function showAIView() {
+            currentView = 'ai';
+            ui.aiViewBtn.classList.add('active'); ui.textViewBtn.classList.remove('active');
+            const latestInsight = Object.values(aiInsightsCache).pop();
+            if (latestInsight) renderJsonResponse(latestInsight, Object.keys(aiInsightsCache).pop());
+            else if (!document.querySelector('.action-button.loading')) runAIAnalysis('summary');
+        }
+        
+        function showTextView() {
+            currentView = 'text';
+            ui.resultsTitle.textContent = 'Extracted Raw Text';
+            ui.aiViewBtn.classList.remove('active'); ui.textViewBtn.classList.add('active');
+            ui.textOutput.textContent = extractedText;
+        }
+        
+        async function copyText() {
+            let textToCopy = currentView === 'ai' ? ui.textOutput.innerText : extractedText;
+            try { await navigator.clipboard.writeText(textToCopy); showToast('Content copied!'); } 
+            catch (err) { showError('Failed to copy text'); }
+        }
+        
+        function resetUpload() {
+            extractedText = ''; aiInsightsCache = {};
+            ui.resultsContainer.style.display = 'none'; ui.uploadArea.style.display = 'block';
+        }
+        
+        function showProgress() { ui.uploadArea.style.display = 'none'; ui.progressContainer.style.display = 'block'; ui.resultsContainer.style.display = 'none'; }
+        function hideProgress() { ui.progressContainer.style.display = 'none'; }
+        function updateProgress(percent, message) { ui.progressFill.style.width = percent + '%'; ui.progressFill.textContent = Math.round(percent) + '%'; if (message) ui.statusMessage.textContent = message; }
+        function updateStatus(message) { ui.statusMessage.textContent = message; }
+        function showError(message) { ui.errorMessage.textContent = message; ui.errorMessage.style.display = 'block'; }
+        function hideError() { ui.errorMessage.style.display = 'none'; }
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.style.cssText = `position: fixed; bottom: 20px; right: 20px; background: var(--dark-color); color: white; padding: 15px 20px; border-radius: 8px; z-index: 1000; transition: opacity 0.3s;`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => document.body.removeChild(toast), 300); }, 3000);
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recruiter's AI Assistant - Powered by Gemini</title>
     
     <!-- PDF.js library -->
