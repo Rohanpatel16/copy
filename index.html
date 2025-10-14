@@ -244,7 +244,7 @@
         function initializeAI(apiKey) {
             try {
                 genAI = new window.GoogleGenerativeAI(apiKey);
-                aiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+                aiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
                 apiKeyContainer.style.display = 'none';
                 mainContent.style.display = 'block';
                 hideError();
