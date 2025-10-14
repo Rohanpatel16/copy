@@ -3,24 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recruiter's AI Assistant - Resume Analyzer</title>
+    <title>Recruiter's AI Assistant - Powered by Gemini</title>
     
     <!-- PDF.js library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     
-    <!-- Tesseract.js for OCR -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <!-- Google AI SDK -->
+    <script type="module">
+        import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+        window.GoogleGenerativeAI = GoogleGenerativeAI;
+    </script>
     
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --primary-color: #4a69bd;
+            --secondary-color: #1abc9c;
+            --dark-color: #2c3e50;
+            --light-bg: #f8f9ff;
         }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -37,307 +43,144 @@
             padding: 40px;
         }
         
-        h1 {
-            color: #2c3e50;
-            margin-bottom: 10px;
-            font-size: 2em;
-            text-align: center;
-        }
+        h1 { color: var(--dark-color); margin-bottom: 10px; font-size: 2em; text-align: center; }
         
-        .subtitle {
-            text-align: center;
-            color: #555;
-            margin-bottom: 30px;
-        }
+        .subtitle { text-align: center; color: #555; margin-bottom: 30px; }
         
-        .upload-area {
-            border: 3px dashed #4ca1af;
+        .api-key-container {
+            background: var(--light-bg);
+            padding: 25px;
             border-radius: 15px;
-            padding: 40px;
+            margin-bottom: 20px;
             text-align: center;
-            background: #f8f9ff;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            margin-bottom: 30px;
         }
-        
-        .upload-area:hover {
-            border-color: #2c3e50;
-            background: #f0f2ff;
-        }
-        
-        .upload-area.dragover {
-            border-color: #2c3e50;
-            background: #e8ebff;
-            transform: scale(1.02);
-        }
-        
-        .upload-icon {
-            font-size: 48px;
-            color: #4ca1af;
-            margin-bottom: 15px;
-        }
-        
-        .upload-text {
-            color: #666;
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-        
-        .upload-hint {
-            color: #999;
-            font-size: 14px;
-        }
-        
-        input[type="file"] {
-            display: none;
-        }
-        
-        .progress-container {
-            display: none;
-            margin-bottom: 30px;
-        }
-        
-        .progress-bar {
+        .api-key-container input {
             width: 100%;
-            height: 30px;
-            background: #f0f0f0;
-            border-radius: 15px;
-            overflow: hidden;
+            max-width: 400px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-right: 10px;
         }
+        .api-key-container button {
+             padding: 12px 20px;
+             font-weight: 600;
+        }
+
+        .upload-area {
+            border: 3px dashed var(--secondary-color);
+            border-radius: 15px; padding: 40px; text-align: center;
+            background: #f8f9ff; transition: all 0.3s ease; cursor: pointer; margin-bottom: 30px;
+        }
+        .upload-area:hover { border-color: var(--primary-color); background: #f0f2ff; }
+        .upload-icon { font-size: 48px; color: var(--secondary-color); margin-bottom: 15px; }
+        input[type="file"] { display: none; }
         
+        .progress-container { display: none; margin-bottom: 30px; }
+        .progress-bar { width: 100%; height: 30px; background: #f0f0f0; border-radius: 15px; overflow: hidden; }
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #4ca1af, #2c3e50);
-            border-radius: 15px;
-            width: 0%;
-            transition: width 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
+            background: linear-gradient(90deg, var(--secondary-color), var(--primary-color));
+            border-radius: 15px; width: 0%; transition: width 0.3s ease;
+            display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;
         }
+        .status-message { text-align: center; margin-top: 10px; color: #666; font-size: 14px; }
         
-        .status-message {
-            text-align: center;
-            margin-top: 10px;
-            color: #666;
-            font-size: 14px;
-        }
-        
-        .results-container {
-            display: none;
-        }
-        
-        .main-layout {
-            display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 30px;
-        }
-        
-        .ai-actions-panel {
-            background: #f8f9ff;
-            border-radius: 15px;
-            padding: 20px;
-        }
-
-        .ai-actions-title {
-            font-size: 1.2em;
-            color: #2c3e50;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #eee;
-        }
-
+        .results-container { display: none; }
+        .main-layout { display: grid; grid-template-columns: 300px 1fr; gap: 30px; }
+        .ai-actions-panel { background: var(--light-bg); border-radius: 15px; padding: 20px; }
+        .ai-actions-title { font-size: 1.2em; color: var(--dark-color); margin-bottom: 20px; padding-bottom: 10px; border-bottom: 2px solid #eee; }
         .action-button {
-            display: block;
-            width: 100%;
-            padding: 15px;
-            margin-bottom: 10px;
-            border: none;
-            border-radius: 8px;
-            background: #fff;
-            color: #333;
-            font-size: 15px;
-            font-weight: 600;
-            text-align: left;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            display: block; width: 100%; padding: 15px; margin-bottom: 10px; border: none;
+            border-radius: 8px; background: #fff; color: #333; font-size: 15px; font-weight: 600;
+            text-align: left; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
+        .action-button:hover, .action-button.loading { background: var(--secondary-color); color: white; transform: translateX(5px); }
+        .action-button.loading { cursor: not-allowed; animation: pulse 1.5s infinite; }
 
-        .action-button:hover {
-            background: #4ca1af;
-            color: white;
-            transform: translateX(5px);
-        }
+        .output-panel { min-height: 400px; }
+        .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .results-title { font-size: 1.5em; color: #333; }
         
-        .output-panel {
-            min-height: 400px;
-        }
-
-        .results-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .results-title {
-            font-size: 1.5em;
-            color: #333;
-        }
-
-        .view-toggle {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .btn {
-            padding: 8px 18px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #4ca1af, #2c3e50);
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(76, 161, 175, 0.4);
-        }
-        
-        .btn-secondary {
-            background: #f0f0f0;
-            color: #666;
-        }
-
-        .btn-secondary.active {
-            background: #2c3e50;
-            color: white;
-        }
+        .btn { padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.3s ease; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(74, 105, 189, 0.4); }
+        .btn-secondary { background: #f0f0f0; color: #666; }
+        .btn-secondary.active { background: var(--dark-color); color: white; }
+        .btn-danger { background: #e74c3c; color: white; }
         
         .text-output {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 10px;
-            padding: 20px;
-            height: 500px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.7;
+            background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 10px; padding: 20px;
+            height: 500px; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word;
+            font-size: 14px; line-height: 1.7;
         }
+        .ai-insights { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; }
+        .ai-insights h3 { color: var(--dark-color); border-bottom: 2px solid var(--secondary-color); padding-bottom: 5px; margin-top: 20px; margin-bottom: 10px; }
+        .ai-insights ul { list-style-position: inside; padding-left: 10px; }
+        .ai-insights strong { color: var(--primary-color); }
+        .bottom-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
         
-        .ai-insights {
-             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-             line-height: 1.6;
-        }
-
-        .ai-insights h3 {
-            color: #2c3e50;
-            border-bottom: 2px solid #4ca1af;
-            padding-bottom: 5px;
-            margin-top: 20px;
-            margin-bottom: 10px;
-        }
-
-        .ai-insights ul {
-            list-style-type: '✓ ';
-            padding-left: 20px;
-            margin-bottom: 15px;
-        }
-         .ai-insights ul.red-flags {
-            list-style-type: '⚠️ ';
-        }
-
-        .ai-insights p {
-            margin-bottom: 10px;
-        }
-
-        .ai-insights .email-template {
-            background: #eef;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #4ca1af;
-        }
-        
-        .bottom-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        
-        .info-box {
-            background: #e7f3ff;
-            border-left: 4px solid #2196F3;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-        }
-
+        .info-box { background: #e7f3ff; border-left: 4px solid #3498db; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
         .info-box p { color: #555; font-size: 14px; margin: 5px 0; }
-        
-        .error-message {
-            background: #fee; color: #c00; padding: 15px; border-radius: 10px; margin-top: 20px; display: none;
-        }
+        .info-box a { color: var(--primary-color); font-weight: bold; }
+        .error-message { background: #fee; color: #c00; padding: 15px; border-radius: 10px; margin-top: 20px; display: none; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🤖 Recruiter's AI Assistant</h1>
-        <p class="subtitle">Upload a resume to extract text and generate AI-powered insights</p>
-        
-        <div class="info-box">
-            <p>🔒 <strong>Privacy First:</strong> Your files are processed 100% in your browser. No data is uploaded or stored.</p>
-            <p>💡 <strong>Simulated AI:</strong> For demonstration purposes, AI insights are generated by local JavaScript logic, not a live AI model.</p>
+        <p class="subtitle">Analyze resumes with the power of Google's Gemini AI</p>
+
+        <div id="apiKeyContainer" class="api-key-container">
+            <h3>Enter Your Google AI API Key</h3>
+            <p style="font-size: 14px; color: #666; margin: 10px 0;">Your key is stored only in your browser and is never shared.</p>
+            <input type="password" id="apiKeyInput" placeholder="Enter your Gemini API Key">
+            <button class="btn btn-primary" id="saveApiKeyBtn">Save Key</button>
+            <p style="font-size: 12px; margin-top: 15px;">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank">Get your API key from Google AI Studio</a>
+            </p>
         </div>
         
-        <div class="upload-area" id="uploadArea">
-            <div class="upload-icon">📄</div>
-            <div class="upload-text">Click to upload or drag & drop a resume (PDF)</div>
-            <div class="upload-hint">Supports both text-based and scanned resumes</div>
-            <input type="file" id="fileInput" accept=".pdf">
-        </div>
-        
-        <div class="progress-container" id="progressContainer">
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressFill">0%</div>
+        <div id="mainContent" style="display: none;">
+            <div class="info-box">
+                <p>🚀 <strong>Powered by Gemini:</strong> All insights are generated by Google's AI. Your API key is active.</p>
             </div>
-            <div class="status-message" id="statusMessage">Initializing...</div>
+            
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">Click to upload or drag & drop a resume (PDF)</div>
+                <input type="file" id="fileInput" accept=".pdf">
+            </div>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar"><div class="progress-fill" id="progressFill">0%</div></div>
+                <div class="status-message" id="statusMessage">Initializing...</div>
+            </div>
         </div>
-        
+
         <div class="results-container" id="resultsContainer">
             <div class="main-layout">
                 <div class="ai-actions-panel">
                     <h3 class="ai-actions-title">AI Analysis Actions</h3>
-                    <button class="action-button" onclick="runAIAnalysis('redFlags')">🔍 Screen for Issues & Red Flags</button>
-                    <button class="action-button" onclick="runAIAnalysis('summary')">📝 Generate Candidate Summary</button>
-                    <button class="action-button" onclick="runAIAnalysis('questions')">❓ Generate Interview Questions</button>
-                    <button class="action-button" onclick="runAIAnalysis('email')">📧 Draft Outreach Email</button>
-                    <hr style="margin: 20px 0; border: 1px solid #eee;">
-                    <button class="btn btn-primary" style="width: 100%;" onclick="resetUpload()">+ Upload New Resume</button>
+                    <button class="action-button" id="btn-redFlags" onclick="runAIAnalysis('redFlags')">🔍 Screen for Issues & Red Flags</button>
+                    <button class="action-button" id="btn-summary" onclick="runAIAnalysis('summary')">📝 Generate Candidate Summary</button>
+                    <button class="action-button" id="btn-questions" onclick="runAIAnalysis('questions')">❓ Generate Interview Questions</button>
+                    <button class="action-button" id="btn-email" onclick="runAIAnalysis('email')">📧 Draft Outreach Email</button>
                 </div>
                 <div class="output-panel">
                     <div class="results-header">
                         <div class="results-title" id="resultsTitle">AI Insights</div>
-                        <div class="view-toggle">
+                        <div>
                             <button class="btn btn-secondary active" id="aiViewBtn" onclick="showAIView()">AI Insights</button>
                             <button class="btn btn-secondary" id="textViewBtn" onclick="showTextView()">Raw Text</button>
                         </div>
                     </div>
                     <div class="text-output" id="textOutput"></div>
                      <div class="bottom-actions">
-                        <button class="btn btn-secondary" onclick="copyText()">📋 Copy to Clipboard</button>
+                        <button class="btn btn-secondary" onclick="copyText()">📋 Copy Insights</button>
+                        <button class="btn btn-primary" onclick="resetUpload()">+ Upload New Resume</button>
+                        <button class="btn btn-danger" id="resetApiKeyBtn">Reset API Key</button>
                     </div>
                 </div>
             </div>
@@ -350,8 +193,15 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         
         let extractedText = '';
-        let currentView = 'ai'; // 'ai' or 'text'
-        
+        let aiInsightsCache = {};
+        let currentView = 'ai';
+        let genAI, aiModel;
+
+        const apiKeyContainer = document.getElementById('apiKeyContainer');
+        const mainContent = document.getElementById('mainContent');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+        const resetApiKeyBtn = document.getElementById('resetApiKeyBtn');
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const progressContainer = document.getElementById('progressContainer');
@@ -364,15 +214,47 @@
         const aiViewBtn = document.getElementById('aiViewBtn');
         const textViewBtn = document.getElementById('textViewBtn');
 
-        uploadArea.addEventListener('click', () => fileInput.click());
-        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
-        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) handleFile(files[0]);
+        document.addEventListener('DOMContentLoaded', () => {
+            const apiKey = localStorage.getItem('geminiApiKey');
+            if (apiKey) {
+                initializeAI(apiKey);
+            } else {
+                apiKeyContainer.style.display = 'block';
+                mainContent.style.display = 'none';
+            }
         });
+
+        saveApiKeyBtn.addEventListener('click', () => {
+            const apiKey = apiKeyInput.value.trim();
+            if (apiKey) {
+                localStorage.setItem('geminiApiKey', apiKey);
+                initializeAI(apiKey);
+            } else {
+                showError("Please enter a valid API key.");
+            }
+        });
+
+        resetApiKeyBtn.addEventListener('click', () => {
+            if (confirm("Are you sure you want to reset your API key?")) {
+                localStorage.removeItem('geminiApiKey');
+                location.reload();
+            }
+        });
+
+        function initializeAI(apiKey) {
+            try {
+                genAI = new window.GoogleGenerativeAI(apiKey);
+                aiModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+                apiKeyContainer.style.display = 'none';
+                mainContent.style.display = 'block';
+                hideError();
+            } catch (error) {
+                showError("Failed to initialize AI. The API key might be invalid.");
+                localStorage.removeItem('geminiApiKey');
+            }
+        }
+
+        uploadArea.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
         
         async function handleFile(file) {
@@ -388,11 +270,10 @@
                 const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                 extractedText = '';
                 for (let i = 1; i <= pdf.numPages; i++) {
-                    updateProgress((i - 1) / pdf.numPages * 100, `Processing page ${i} of ${pdf.numPages}...`);
+                    updateProgress((i - 1) / pdf.numPages * 100, `Extracting text from page ${i}...`);
                     const page = await pdf.getPage(i);
                     const textContent = await page.getTextContent();
-                    const pageText = textContent.items.map(item => item.str).join(' ');
-                    extractedText += pageText + '\n\n';
+                    extractedText += textContent.items.map(item => item.str).join(' ');
                 }
                 displayResults();
             } catch (error) {
@@ -404,140 +285,101 @@
         function displayResults() {
             hideProgress();
             resultsContainer.style.display = 'block';
-            runAIAnalysis('summary'); // Run initial summary by default
+            aiInsightsCache = {}; // Clear cache for new resume
+            runAIAnalysis('summary');
         }
 
-        function runAIAnalysis(type) {
-            updateStatus('AI is analyzing...');
-            textOutput.innerHTML = '<p>Generating insights...</p>';
-            setTimeout(() => { // Simulate network latency
-                const aiContent = getAIInsight(extractedText, type);
-                textOutput.innerHTML = aiContent;
-                showAIView();
+        async function runAIAnalysis(type) {
+            if (!aiModel) {
+                showError("AI is not initialized. Please check your API Key.");
+                return;
+            }
+
+            // Check cache first
+            if (aiInsightsCache[type]) {
+                textOutput.innerHTML = aiInsightsCache[type];
+                updateTitlesAndViews(type);
+                return;
+            }
+
+            const actionButton = document.getElementById(`btn-${type}`);
+            document.querySelectorAll('.action-button').forEach(btn => btn.classList.add('loading'));
+            updateStatus('Generating insights with Google AI...');
+            textOutput.innerHTML = '<p>Contacting Gemini...</p>';
+            showAIView();
+            updateTitlesAndViews(type);
+
+            const prompt = getAIPrompt(extractedText, type);
+
+            try {
+                const result = await aiModel.generateContent(prompt);
+                const response = await result.response;
+                const aiText = response.text();
+                
+                const formattedHtml = formatAIResponse(aiText);
+                aiInsightsCache[type] = formattedHtml;
+                textOutput.innerHTML = formattedHtml;
+
+            } catch (error) {
+                console.error("AI Error:", error);
+                showError("Error communicating with the AI. Please check your API key and network connection. Details: " + error.message);
+                textOutput.innerHTML = '<p>An error occurred. Please try again.</p>';
+            } finally {
+                document.querySelectorAll('.action-button').forEach(btn => btn.classList.remove('loading'));
                 updateStatus('');
-            }, 500);
+            }
         }
 
-        // --- SIMULATED AI LOGIC ---
-        function getAIInsight(text, analysisType) {
-            const lowerText = text.toLowerCase();
-            const words = text.split(/\s+/).filter(Boolean);
-
-            // Helper function to find keywords
-            const findKeywords = (keywords) => {
-                return keywords.filter(kw => lowerText.includes(kw.toLowerCase()));
-            };
-
-            // Helper to extract sections
-            const extractSection = (startKeyword, endKeywords) => {
-                const startIndex = lowerText.indexOf(startKeyword);
-                if (startIndex === -1) return '';
-                let endIndex = text.length;
-                for (const endKeyword of endKeywords) {
-                    const tempEndIndex = lowerText.indexOf(endKeyword, startIndex + startKeyword.length);
-                    if (tempEndIndex !== -1) {
-                        endIndex = Math.min(endIndex, tempEndIndex);
-                    }
-                }
-                return text.substring(startIndex, endIndex);
-            };
+        function getAIPrompt(text, analysisType) {
+            const basePrompt = `You are an expert Senior Technical Recruiter and career coach. Analyze the following resume text carefully. Provide clear, concise, and actionable insights. The resume text is:\n\n---\n${text}\n---\n\n`;
 
             switch (analysisType) {
                 case 'redFlags':
-                    resultsTitle.textContent = "Issues & Red Flags";
-                    let flags = [];
-                    // Check for contact info
-                    if (!lowerText.match(/(\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b)/i)) {
-                        flags.push('Missing clear contact information (email or phone number).');
-                    }
-                    // Check for employment gaps (very basic check)
-                    const years = text.match(/\b(20\d{2})\b/g);
-                    if (years) {
-                        const uniqueYears = [...new Set(years)].sort();
-                        for (let i = 0; i < uniqueYears.length - 1; i++) {
-                            if (parseInt(uniqueYears[i+1]) - parseInt(uniqueYears[i]) > 2) {
-                                flags.push(`Potential employment gap between ${uniqueYears[i]} and ${uniqueYears[i+1]}.`);
-                                break;
-                            }
-                        }
-                    }
-                     // Check for generic, non-quantifiable language
-                    if (lowerText.includes("responsible for") || lowerText.includes("duties included")) {
-                        flags.push("Resume uses passive language ('responsible for') instead of action verbs with quantifiable results.");
-                    }
-                    if (words.length < 250) {
-                        flags.push('Resume is very brief, may lack detail.');
-                    }
-                    if (!flags.length) {
-                        flags.push('No obvious red flags detected. The resume appears well-structured.');
-                    }
-                    return `<h3>Screening Results</h3><ul class="red-flags">${flags.map(f => `<li>${f}</li>`).join('')}</ul>`;
-
+                    return basePrompt + "Identify potential red flags or areas of concern for a hiring manager. These could include unexplained employment gaps, lack of quantifiable achievements, excessive jargon, typos, or passive language. Format the output as a bulleted list. If no major flags are found, state that the resume looks solid and mention its strengths.";
                 case 'summary':
-                     resultsTitle.textContent = "Candidate Summary";
-                    let summary = extractSection('summary', ['experience', 'education', 'skills']);
-                    if (!summary) summary = words.slice(0, 70).join(' ') + '...'; else summary = summary.replace(/summary/i, '');
-
-                    const potentialSkills = findKeywords(['JavaScript', 'Python', 'React', 'Node.js', 'Java', 'C++', 'SQL', 'AWS', 'Azure', 'Project Management', 'Agile', 'Scrum', 'Data Analysis']);
-                    
-                    return `<h3>Candidate Overview</h3>
-                            <p>${summary.trim()}</p>
-                            <h3>Key Skills Identified</h3>
-                            ${potentialSkills.length > 0 ? `<ul>${potentialSkills.map(s => `<li>${s}</li>`).join('')}</ul>` : '<p>No specific technical skills automatically detected. Review skills section manually.</p>'}`;
-                
+                    return basePrompt + "Write a concise, professional summary of this candidate (2-4 sentences). Highlight their key skills, years of experience, and primary qualifications. This summary should be suitable for a hiring manager's initial screening notes.";
                 case 'questions':
-                    resultsTitle.textContent = "Interview Questions";
-                    const skillsForQs = findKeywords(['JavaScript', 'Python', 'React', 'Project Management', 'Agile', 'Data Analysis', 'Leadership', 'Teamwork']);
-                    let questions = [
-                        'Can you walk me through your most challenging project mentioned on your resume?',
-                        'What are your career aspirations for the next 5 years?',
-                        'How do you handle tight deadlines and high-pressure situations?'
-                    ];
-                    if (skillsForQs.includes('Project Management') || skillsForQs.includes('Agile')) {
-                        questions.push('Describe your experience with Agile methodologies. What was your role in the team?');
-                    }
-                    if (skillsForQs.includes('Python') || skillsForQs.includes('Data Analysis')) {
-                        questions.push('Tell me about a time you used data to drive a decision.');
-                    }
-                    if (skillsForQs.includes('React') || skillsForQs.includes('JavaScript')) {
-                        questions.push('What are your thoughts on state management in a large React application?');
-                    }
-                    return `<h3>Suggested Interview Questions</h3>
-                            <h4>General & Behavioral</h4>
-                            <ul>${questions.map(q => `<li>${q}</li>`).join('')}</ul>
-                            ${skillsForQs.length > 0 ? `<h4>Technical / Skill-Based</h4><ul>${skillsForQs.map(s => `<li>Based on your experience with <strong>${s}</strong>, can you describe a project where you used it effectively?</li>`).join('')}</ul>` : ''}`;
-
+                    return basePrompt + "Based on the skills and experience listed in this resume, generate a list of 5-7 insightful interview questions. Include a mix of behavioral, technical, and project-based questions. Tailor the questions directly to the candidate's background. Format the output as a numbered list.";
                 case 'email':
-                    resultsTitle.textContent = "Outreach Email Draft";
-                    let name = (text.match(/([A-Z][a-z]+)\s+([A-Z][a-z]+)/) || ['Candidate'])[0];
-                    let keySkill = findKeywords(['JavaScript', 'Python', 'Project Management', 'Data Analysis'])[0] || 'impressive background';
-
-                    return `<h3>Email Draft</h3>
-                            <div class="email-template">
-                                <p><strong>Subject:</strong> Interesting profile for a role at [Your Company Name]</p>
-                                <p>Hi ${name},</p>
-                                <p>I came across your resume and was very impressed with your experience, particularly your work with ${keySkill}.</p>
-                                <p>At [Your Company Name], we are currently looking for a talented [Job Role, e.g., Senior Software Engineer] to join our team, and your background seems like a great fit for the challenges we're tackling.</p>
-                                <p>Would you be open to a brief, informal chat sometime next week to discuss this further?</p>
-                                <p>Best regards,</p>
-                                <p>[Your Name]</p>
-                            </div>`;
+                    return basePrompt + "Draft a personalized, professional outreach email to this candidate for a potential job opportunity. Use placeholders like [Job Role], [Your Company Name], and [Your Name]. Dynamically infer the candidate's name from the resume and reference one specific skill or project from their resume to make the email more engaging. The tone should be friendly and professional.";
                 default:
-                    return '<p>Please select an analysis action.</p>';
+                    return text;
             }
         }
-        // --- END SIMULATED AI LOGIC ---
 
+        function formatAIResponse(text) {
+            let html = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
+                .replace(/\n\s*[\*|-]\s/g, '</li><li>') // List items
+                .replace(/(\d+)\.\s/g, '<br>$1. '); // Numbered list spacing
+            
+            // Wrap lists in <ul>
+            if (html.includes('<li>')) {
+                html = '<ul><li>' + html.substring(html.indexOf('<li>') + 4) + '</li></ul>';
+            }
+            return html.replace(/\n/g, '<br>');
+        }
+        
+        function updateTitlesAndViews(type) {
+            const titles = {
+                redFlags: 'Issues & Red Flags',
+                summary: 'Candidate Summary',
+                questions: 'Interview Questions',
+                email: 'Outreach Email Draft'
+            };
+            resultsTitle.textContent = titles[type] || 'AI Insights';
+        }
 
         function showAIView() {
             currentView = 'ai';
             textOutput.classList.add('ai-insights');
             aiViewBtn.classList.add('active');
             textViewBtn.classList.remove('active');
-            if (textOutput.innerHTML.startsWith('<')) {
-                // Already has HTML, do nothing
-            } else {
-                 runAIAnalysis('summary'); // Default view
+            const latestInsight = Object.values(aiInsightsCache).pop();
+            if (latestInsight) {
+                 textOutput.innerHTML = latestInsight;
+            } else if (!document.querySelector('.action-button.loading')) {
+                 runAIAnalysis('summary');
             }
         }
         
@@ -561,45 +403,25 @@
         }
         
         function resetUpload() {
-            fileInput.value = '';
             extractedText = '';
+            aiInsightsCache = {};
             resultsContainer.style.display = 'none';
             uploadArea.style.display = 'block';
         }
         
         // --- UI Helpers ---
-        function showProgress() {
-            uploadArea.style.display = 'none';
-            progressContainer.style.display = 'block';
-            resultsContainer.style.display = 'none';
-        }
-        
+        function showProgress() { uploadArea.style.display = 'none'; progressContainer.style.display = 'block'; resultsContainer.style.display = 'none'; }
         function hideProgress() { progressContainer.style.display = 'none'; }
-        
-        function updateProgress(percent, message) {
-            progressFill.style.width = percent + '%';
-            progressFill.textContent = Math.round(percent) + '%';
-            if (message) statusMessage.textContent = message;
-        }
-        
+        function updateProgress(percent, message) { progressFill.style.width = percent + '%'; progressFill.textContent = Math.round(percent) + '%'; if (message) statusMessage.textContent = message; }
         function updateStatus(message) { statusMessage.textContent = message; }
-        
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-        }
-        
+        function showError(message) { errorMessage.textContent = message; errorMessage.style.display = 'block'; }
         function hideError() { errorMessage.style.display = 'none'; }
-        
         function showToast(message) {
             const toast = document.createElement('div');
-            toast.style.cssText = `position: fixed; bottom: 20px; right: 20px; background: #2c3e50; color: white; padding: 15px 20px; border-radius: 8px; z-index: 1000; transition: opacity 0.3s;`;
+            toast.style.cssText = `position: fixed; bottom: 20px; right: 20px; background: var(--dark-color); color: white; padding: 15px 20px; border-radius: 8px; z-index: 1000; transition: opacity 0.3s;`;
             toast.textContent = message;
             document.body.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => document.body.removeChild(toast), 300);
-            }, 3000);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => document.body.removeChild(toast), 300); }, 3000);
         }
     </script>
 </body>
