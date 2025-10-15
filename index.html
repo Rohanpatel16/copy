@@ -94,10 +94,55 @@
         .info-box a { color: var(--primary-color); font-weight: bold; }
         .error-message { background: #fee; color: #c00; padding: 15px; border-radius: 10px; margin-top: 20px; display: none; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        
+        /* Settings Panel Styles */
+        .settings-icon { position: absolute; top: 20px; right: 20px; background: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.1); transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; font-size: 20px; z-index: 100; }
+        .settings-icon:hover { transform: rotate(90deg); box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+        .settings-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 998; opacity: 0; visibility: hidden; transition: all 0.3s ease; }
+        .settings-overlay.active { opacity: 1; visibility: visible; }
+        .settings-panel { position: fixed; top: 0; right: -500px; width: 500px; max-width: 90vw; height: 100vh; background: white; box-shadow: -5px 0 25px rgba(0,0,0,0.3); z-index: 999; transition: right 0.3s ease; overflow-y: auto; display: flex; flex-direction: column; }
+        .settings-panel.active { right: 0; }
+        .settings-header { display: flex; justify-content: space-between; align-items: center; padding: 25px; border-bottom: 2px solid #eee; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; }
+        .settings-header h2 { margin: 0; font-size: 1.5em; }
+        .settings-close { background: rgba(255,255,255,0.2); border: none; color: white; font-size: 28px; cursor: pointer; width: 35px; height: 35px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.3s; }
+        .settings-close:hover { background: rgba(255,255,255,0.3); }
+        .settings-tabs { display: flex; border-bottom: 2px solid #eee; background: #f8f9ff; }
+        .settings-tab { flex: 1; padding: 15px 10px; border: none; background: transparent; cursor: pointer; font-size: 14px; font-weight: 600; color: #666; transition: all 0.3s; border-bottom: 3px solid transparent; }
+        .settings-tab:hover { background: rgba(74, 105, 189, 0.1); }
+        .settings-tab.active { color: var(--primary-color); border-bottom-color: var(--primary-color); background: white; }
+        .settings-content { flex: 1; overflow-y: auto; }
+        .settings-tab-content { display: none; padding: 25px; }
+        .settings-tab-content.active { display: block; }
+        .settings-section { margin-bottom: 30px; }
+        .settings-section h3 { color: var(--dark-color); margin-bottom: 15px; font-size: 1.1em; border-bottom: 2px solid var(--secondary-color); padding-bottom: 8px; }
+        .settings-section label { display: block; margin-bottom: 8px; color: #555; font-weight: 600; font-size: 14px; }
+        .settings-section textarea { width: 100%; min-height: 120px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; resize: vertical; }
+        .settings-section input[type="number"], .settings-section select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+        .settings-section input[type="range"] { width: 100%; }
+        .helper-text { font-size: 12px; color: #888; margin-top: 5px; font-style: italic; }
+        .checkbox-group { display: flex; flex-direction: column; gap: 10px; }
+        .checkbox-item { display: flex; align-items: center; gap: 10px; }
+        .checkbox-item input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        .checkbox-item label { margin: 0; cursor: pointer; font-weight: 500; }
+        .quick-toggles { display: flex; gap: 10px; margin-bottom: 15px; }
+        .quick-toggle-btn { padding: 8px 15px; border: 1px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: 13px; transition: all 0.3s; }
+        .quick-toggle-btn:hover { background: var(--light-bg); }
+        .reset-individual-btn { padding: 6px 12px; background: #f39c12; color: white; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; margin-top: 8px; transition: all 0.3s; }
+        .reset-individual-btn:hover { background: #e67e22; }
+        .slider-container { margin-bottom: 20px; }
+        .slider-value { display: inline-block; margin-left: 10px; font-weight: 600; color: var(--primary-color); }
+        .settings-actions { padding: 20px 25px; border-top: 2px solid #eee; background: #f8f9ff; display: flex; gap: 10px; flex-wrap: wrap; }
+        .settings-save-btn { flex: 1; padding: 12px 20px; background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .settings-save-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(74, 105, 189, 0.4); }
+        .reset-all-btn { flex: 1; padding: 12px 20px; background: var(--danger-color); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .reset-all-btn:hover { background: #c0392b; transform: translateY(-2px); }
+        @keyframes slideIn { from { right: -500px; } to { right: 0; } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
     <div class="container">
+        <button class="settings-icon" onclick="openSettings()" title="Settings">⚙️</button>
         <h1>🤖 Recruiter's AI Assistant</h1>
         <p class="subtitle">Structured resume analysis with Google's Gemini AI</p>
 
@@ -111,7 +156,7 @@
         
         <div id="mainContent" style="display: none;">
             <div class="info-box">
-                <p>🚀 <strong>AI Model:</strong> Using <strong>gemini-2.5-flash-lite</strong> with structured JSON output.</p>
+                <p>🚀 <strong>AI Model:</strong> Using <strong id="currentModelDisplay">gemini-2.5-flash-lite</strong> with structured JSON output. <span style="color: #888; font-size: 12px;">(Change in Settings ⚙️)</span></p>
             </div>
             
             <div class="upload-area" id="uploadArea"><div class="upload-icon">📄</div><div class="upload-text">Click to upload or drag & drop a resume (PDF)</div><input type="file" id="fileInput" accept=".pdf"></div>
@@ -146,6 +191,151 @@
         <div class="error-message" id="errorMessage"></div>
     </div>
     
+    <!-- Settings Panel -->
+    <div class="settings-overlay" id="settingsOverlay" onclick="closeSettings()"></div>
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header">
+            <h2>⚙️ AI Settings</h2>
+            <button class="settings-close" onclick="closeSettings()">×</button>
+        </div>
+        
+        <div class="settings-tabs">
+            <button class="settings-tab active" onclick="switchSettingsTab('prompts')">Prompts</button>
+            <button class="settings-tab" onclick="switchSettingsTab('privacy')">Privacy & Actions</button>
+            <button class="settings-tab" onclick="switchSettingsTab('parameters')">AI Parameters</button>
+        </div>
+        
+        <div class="settings-content">
+            <!-- Tab 1: Prompt Templates -->
+            <div id="tab-prompts" class="settings-tab-content active">
+                <div class="helper-text" style="margin-bottom: 20px; background: #fff3cd; padding: 12px; border-radius: 6px; border-left: 4px solid #ffc107;">
+                    💡 Use <strong>{resume}</strong> placeholder in your prompts. It will be replaced with the filtered resume text based on your privacy settings.
+                </div>
+                
+                <div class="settings-section">
+                    <label>Red Flags Analysis Prompt</label>
+                    <textarea id="prompt-redFlags"></textarea>
+                    <button class="reset-individual-btn" onclick="resetIndividualPrompt('redFlags')">Reset to Default</button>
+                </div>
+                
+                <div class="settings-section">
+                    <label>Candidate Summary Prompt</label>
+                    <textarea id="prompt-summary"></textarea>
+                    <button class="reset-individual-btn" onclick="resetIndividualPrompt('summary')">Reset to Default</button>
+                </div>
+                
+                <div class="settings-section">
+                    <label>Interview Questions Prompt</label>
+                    <textarea id="prompt-questions"></textarea>
+                    <button class="reset-individual-btn" onclick="resetIndividualPrompt('questions')">Reset to Default</button>
+                </div>
+                
+                <div class="settings-section">
+                    <label>Outreach Email Prompt</label>
+                    <textarea id="prompt-email"></textarea>
+                    <button class="reset-individual-btn" onclick="resetIndividualPrompt('email')">Reset to Default</button>
+                </div>
+            </div>
+            
+            <!-- Tab 2: Privacy & Actions -->
+            <div id="tab-privacy" class="settings-tab-content">
+                <div class="settings-section">
+                    <h3>Data Privacy Controls</h3>
+                    <p class="helper-text">Control what information from resumes is shared with the AI</p>
+                    <div class="quick-toggles">
+                        <button class="quick-toggle-btn" onclick="toggleAllPrivacy(true)">Select All</button>
+                        <button class="quick-toggle-btn" onclick="toggleAllPrivacy(false)">Select None</button>
+                    </div>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="privacy-contact" checked>
+                            <label for="privacy-contact">Include Contact Information (phone, email, address)</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="privacy-personal" checked>
+                            <label for="privacy-personal">Include Personal Details (name, photo references)</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="privacy-work" checked>
+                            <label for="privacy-work">Include Full Work History</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="privacy-education" checked>
+                            <label for="privacy-education">Include Education Details</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="privacy-skills" checked>
+                            <label for="privacy-skills">Include Skills & Certifications</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="privacy-projects" checked>
+                            <label for="privacy-projects">Include Projects & Portfolio</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3>Visible Analysis Actions</h3>
+                    <p class="helper-text">Choose which AI analysis buttons to show in the sidebar</p>
+                    <div class="checkbox-group">
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="action-redFlags" checked onchange="updateVisibleActions()">
+                            <label for="action-redFlags">Show "Screen for Issues & Red Flags"</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="action-summary" checked onchange="updateVisibleActions()">
+                            <label for="action-summary">Show "Generate Candidate Summary"</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="action-questions" checked onchange="updateVisibleActions()">
+                            <label for="action-questions">Show "Generate Interview Questions"</label>
+                        </div>
+                        <div class="checkbox-item">
+                            <input type="checkbox" id="action-email" checked onchange="updateVisibleActions()">
+                            <label for="action-email">Show "Draft Outreach Email"</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tab 3: AI Parameters -->
+            <div id="tab-parameters" class="settings-tab-content">
+                <div class="settings-section">
+                    <label>AI Model</label>
+                    <select id="param-model">
+                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Recommended, Fastest)</option>
+                        <option value="gemini-1.5-flash">Gemini 1.5 Flash (Balanced)</option>
+                        <option value="gemini-1.5-pro">Gemini 1.5 Pro (Most Capable)</option>
+                    </select>
+                    <p class="helper-text">Choose the AI model for analysis. Flash models are faster, Pro is more thorough.</p>
+                </div>
+                
+                <div class="settings-section">
+                    <label>Temperature (Creativity)</label>
+                    <div class="slider-container">
+                        <input type="range" id="param-temperature" min="0" max="2" step="0.1" value="1.0" oninput="document.getElementById('temp-value').textContent = this.value">
+                        <span class="slider-value" id="temp-value">1.0</span>
+                    </div>
+                    <p class="helper-text">Lower values (0.0-0.5) are more focused, higher values (1.5-2.0) are more creative.</p>
+                </div>
+                
+                <div class="settings-section">
+                    <label>Max Output Tokens</label>
+                    <div class="slider-container">
+                        <input type="range" id="param-maxTokens" min="512" max="8192" step="256" value="2048" oninput="document.getElementById('tokens-value').textContent = this.value">
+                        <span class="slider-value" id="tokens-value">2048</span>
+                    </div>
+                    <p class="helper-text">Maximum length of AI responses. Higher values allow longer outputs.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="settings-actions">
+            <button class="settings-save-btn" onclick="saveSettings()">💾 Save Settings</button>
+            <button class="reset-all-btn" onclick="resetAllSettings()">🔄 Reset All to Defaults</button>
+        </div>
+    </div>
+    
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         
@@ -153,6 +343,59 @@
         let aiInsightsCache = {};
         let currentView = 'ai';
         let genAI, aiModel;
+        
+        // Default Settings Configuration
+        const DEFAULT_PROMPTS = {
+            redFlags: `You are an expert Senior Technical Recruiter. Analyze the following resume text and return a response ONLY in the specified JSON format. Do not include any text outside of the JSON structure. Resume text is:
+---
+{resume}
+---
+
+Format your response as a JSON object with three keys: "analysis_summary" (a string with a brief overall assessment), "red_flags" (an array of strings detailing potential issues), and "strengths" (an array of strings highlighting positive aspects). If no flags are found, the "red_flags" array should be empty.`,
+            summary: `You are an expert Senior Technical Recruiter. Analyze the following resume text and return a response ONLY in the specified JSON format. Do not include any text outside of the JSON structure. Resume text is:
+---
+{resume}
+---
+
+Format your response as a JSON object with three keys: "candidate_name" (a string for the candidate's full name, or "Not Found"), "professional_summary" (a 2-3 sentence string summarizing their profile), and "key_skills" (an array of strings of their most important skills).`,
+            questions: `You are an expert Senior Technical Recruiter. Analyze the following resume text and return a response ONLY in the specified JSON format. Do not include any text outside of the JSON structure. Resume text is:
+---
+{resume}
+---
+
+Format your response as a JSON object with two keys: "behavioral_questions" (an array of strings for behavioral/situational questions) and "technical_questions" (an array of strings for technical questions based on their skills). Provide 3-4 questions for each category.`,
+            email: `You are an expert Senior Technical Recruiter. Analyze the following resume text and return a response ONLY in the specified JSON format. Do not include any text outside of the JSON structure. Resume text is:
+---
+{resume}
+---
+
+Format your response as a JSON object with three keys: "recipient_name" (a string with the candidate's inferred name), "subject" (a string for a compelling subject line), and "body" (a string for the email content, using placeholders like [Job Role], [Your Company Name], and [Your Name]).`
+        };
+        
+        const DEFAULT_SETTINGS = {
+            prompts: { ...DEFAULT_PROMPTS },
+            privacy: {
+                includeContact: true,
+                includePersonal: true,
+                includeWorkHistory: true,
+                includeEducation: true,
+                includeSkills: true,
+                includeProjects: true
+            },
+            params: {
+                model: "gemini-2.5-flash-lite",
+                temperature: 1.0,
+                maxTokens: 2048
+            },
+            visibleActions: {
+                redFlags: true,
+                summary: true,
+                questions: true,
+                email: true
+            }
+        };
+        
+        let currentSettings = { ...DEFAULT_SETTINGS };
 
         const ui = {
             apiKeyContainer: document.getElementById('apiKeyContainer'),
@@ -173,7 +416,236 @@
             textViewBtn: document.getElementById('textViewBtn')
         };
         
+        // Settings Management Functions
+        function loadSettings() {
+            try {
+                const savedSettings = localStorage.getItem('aiSettings');
+                if (savedSettings) {
+                    currentSettings = JSON.parse(savedSettings);
+                    // Merge with defaults to ensure new settings are present
+                    currentSettings = {
+                        prompts: { ...DEFAULT_PROMPTS, ...currentSettings.prompts },
+                        privacy: { ...DEFAULT_SETTINGS.privacy, ...currentSettings.privacy },
+                        params: { ...DEFAULT_SETTINGS.params, ...currentSettings.params },
+                        visibleActions: { ...DEFAULT_SETTINGS.visibleActions, ...currentSettings.visibleActions }
+                    };
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+                currentSettings = { ...DEFAULT_SETTINGS };
+            }
+            applySettingsToUI();
+        }
+        
+        function applySettingsToUI() {
+            // Apply prompts
+            document.getElementById('prompt-redFlags').value = currentSettings.prompts.redFlags;
+            document.getElementById('prompt-summary').value = currentSettings.prompts.summary;
+            document.getElementById('prompt-questions').value = currentSettings.prompts.questions;
+            document.getElementById('prompt-email').value = currentSettings.prompts.email;
+            
+            // Apply privacy settings
+            document.getElementById('privacy-contact').checked = currentSettings.privacy.includeContact;
+            document.getElementById('privacy-personal').checked = currentSettings.privacy.includePersonal;
+            document.getElementById('privacy-work').checked = currentSettings.privacy.includeWorkHistory;
+            document.getElementById('privacy-education').checked = currentSettings.privacy.includeEducation;
+            document.getElementById('privacy-skills').checked = currentSettings.privacy.includeSkills;
+            document.getElementById('privacy-projects').checked = currentSettings.privacy.includeProjects;
+            
+            // Apply visible actions
+            document.getElementById('action-redFlags').checked = currentSettings.visibleActions.redFlags;
+            document.getElementById('action-summary').checked = currentSettings.visibleActions.summary;
+            document.getElementById('action-questions').checked = currentSettings.visibleActions.questions;
+            document.getElementById('action-email').checked = currentSettings.visibleActions.email;
+            
+            // Apply AI parameters
+            document.getElementById('param-model').value = currentSettings.params.model;
+            document.getElementById('param-temperature').value = currentSettings.params.temperature;
+            document.getElementById('temp-value').textContent = currentSettings.params.temperature;
+            document.getElementById('param-maxTokens').value = currentSettings.params.maxTokens;
+            document.getElementById('tokens-value').textContent = currentSettings.params.maxTokens;
+            
+            // Update visible actions
+            updateVisibleActions();
+            
+            // Update model display
+            const modelDisplay = document.getElementById('currentModelDisplay');
+            if (modelDisplay) {
+                modelDisplay.textContent = currentSettings.params.model;
+            }
+        }
+        
+        function saveSettings() {
+            // Collect settings from UI
+            currentSettings = {
+                prompts: {
+                    redFlags: document.getElementById('prompt-redFlags').value,
+                    summary: document.getElementById('prompt-summary').value,
+                    questions: document.getElementById('prompt-questions').value,
+                    email: document.getElementById('prompt-email').value
+                },
+                privacy: {
+                    includeContact: document.getElementById('privacy-contact').checked,
+                    includePersonal: document.getElementById('privacy-personal').checked,
+                    includeWorkHistory: document.getElementById('privacy-work').checked,
+                    includeEducation: document.getElementById('privacy-education').checked,
+                    includeSkills: document.getElementById('privacy-skills').checked,
+                    includeProjects: document.getElementById('privacy-projects').checked
+                },
+                params: {
+                    model: document.getElementById('param-model').value,
+                    temperature: parseFloat(document.getElementById('param-temperature').value),
+                    maxTokens: parseInt(document.getElementById('param-maxTokens').value)
+                },
+                visibleActions: {
+                    redFlags: document.getElementById('action-redFlags').checked,
+                    summary: document.getElementById('action-summary').checked,
+                    questions: document.getElementById('action-questions').checked,
+                    email: document.getElementById('action-email').checked
+                }
+            };
+            
+            // Save to localStorage
+            localStorage.setItem('aiSettings', JSON.stringify(currentSettings));
+            
+            // Update AI model if needed
+            if (genAI) {
+                aiModel = genAI.getGenerativeModel({ model: currentSettings.params.model });
+            }
+            
+            // Update visible actions
+            updateVisibleActions();
+            
+            // Update model display
+            const modelDisplay = document.getElementById('currentModelDisplay');
+            if (modelDisplay) {
+                modelDisplay.textContent = currentSettings.params.model;
+            }
+            
+            // Clear cache to force re-analysis with new settings
+            aiInsightsCache = {};
+            
+            showToast('✅ Settings saved successfully!');
+            closeSettings();
+        }
+        
+        function resetAllSettings() {
+            if (confirm('Are you sure you want to reset all settings to default? This cannot be undone.')) {
+                currentSettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+                localStorage.setItem('aiSettings', JSON.stringify(currentSettings));
+                applySettingsToUI();
+                
+                // Update AI model
+                if (genAI) {
+                    aiModel = genAI.getGenerativeModel({ model: currentSettings.params.model });
+                }
+                
+                // Clear cache
+                aiInsightsCache = {};
+                
+                showToast('✅ All settings reset to defaults!');
+            }
+        }
+        
+        function resetIndividualPrompt(type) {
+            if (confirm(`Reset this prompt to default?`)) {
+                document.getElementById(`prompt-${type}`).value = DEFAULT_PROMPTS[type];
+                showToast('✅ Prompt reset to default!');
+            }
+        }
+        
+        function toggleAllPrivacy(value) {
+            document.getElementById('privacy-contact').checked = value;
+            document.getElementById('privacy-personal').checked = value;
+            document.getElementById('privacy-work').checked = value;
+            document.getElementById('privacy-education').checked = value;
+            document.getElementById('privacy-skills').checked = value;
+            document.getElementById('privacy-projects').checked = value;
+        }
+        
+        function updateVisibleActions() {
+            const actions = ['redFlags', 'summary', 'questions', 'email'];
+            let visibleCount = 0;
+            
+            actions.forEach(action => {
+                const checkbox = document.getElementById(`action-${action}`);
+                const button = document.getElementById(`btn-${action}`);
+                
+                if (checkbox && button) {
+                    if (checkbox.checked) {
+                        button.style.display = 'block';
+                        visibleCount++;
+                    } else {
+                        button.style.display = 'none';
+                    }
+                }
+            });
+            
+            // Ensure at least one action is visible
+            if (visibleCount === 0) {
+                const firstCheckbox = document.getElementById('action-summary');
+                firstCheckbox.checked = true;
+                document.getElementById('btn-summary').style.display = 'block';
+                showToast('⚠️ At least one action must be visible!');
+            }
+        }
+        
+        function openSettings() {
+            document.getElementById('settingsOverlay').classList.add('active');
+            document.getElementById('settingsPanel').classList.add('active');
+        }
+        
+        function closeSettings() {
+            document.getElementById('settingsOverlay').classList.remove('active');
+            document.getElementById('settingsPanel').classList.remove('active');
+        }
+        
+        function switchSettingsTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.settings-tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.settings-tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        function getFilteredResumeText(text) {
+            let filtered = text;
+            
+            // Apply privacy filters
+            if (!currentSettings.privacy.includeContact) {
+                // Remove email addresses
+                filtered = filtered.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[CONTACT REMOVED]');
+                // Remove phone numbers (various formats)
+                filtered = filtered.replace(/(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g, '[PHONE REMOVED]');
+                // Remove potential addresses (basic pattern)
+                filtered = filtered.replace(/\d+\s+[\w\s]+(?:street|st|avenue|ave|road|rd|highway|hwy|square|sq|trail|trl|drive|dr|court|ct|parkway|pkwy|circle|cir|boulevard|blvd)\b/gi, '[ADDRESS REMOVED]');
+            }
+            
+            // Note: Other privacy filters can be enhanced based on specific patterns
+            // For now, contact info is the most critical
+            
+            return filtered;
+        }
+        
+        // Keyboard shortcut for settings
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+                e.preventDefault();
+                openSettings();
+            }
+            if (e.key === 'Escape') {
+                closeSettings();
+            }
+        });
+
         document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
             const apiKey = localStorage.getItem('geminiApiKey');
             if (apiKey) initializeAI(apiKey);
             else { ui.apiKeyContainer.style.display = 'block'; ui.mainContent.style.display = 'none'; }
@@ -192,7 +664,7 @@
         function initializeAI(apiKey) {
             try {
                 genAI = new window.GoogleGenerativeAI(apiKey);
-                aiModel = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+                aiModel = genAI.getGenerativeModel({ model: currentSettings.params.model });
                 ui.apiKeyContainer.style.display = 'none';
                 ui.mainContent.style.display = 'block';
                 hideError();
@@ -247,7 +719,11 @@
             try {
                 const result = await aiModel.generateContent({
                     contents: [{ role: "user", parts: [{ text: prompt }] }],
-                    generationConfig: { responseMimeType: "application/json" }
+                    generationConfig: { 
+                        responseMimeType: "application/json",
+                        temperature: currentSettings.params.temperature,
+                        maxOutputTokens: currentSettings.params.maxTokens
+                    }
                 });
                 const responseText = result.response.text();
                 const jsonResponse = JSON.parse(responseText);
@@ -266,18 +742,16 @@
         }
 
         function getAIPrompt(text, analysisType) {
-            const baseIntro = `You are an expert Senior Technical Recruiter. Analyze the following resume text and return a response ONLY in the specified JSON format. Do not include any text outside of the JSON structure. Resume text is:\n---\n${text}\n---\n\n`;
-
-            switch (analysisType) {
-                case 'redFlags':
-                    return baseIntro + `Format your response as a JSON object with three keys: "analysis_summary" (a string with a brief overall assessment), "red_flags" (an array of strings detailing potential issues), and "strengths" (an array of strings highlighting positive aspects). If no flags are found, the "red_flags" array should be empty.`;
-                case 'summary':
-                    return baseIntro + `Format your response as a JSON object with three keys: "candidate_name" (a string for the candidate's full name, or "Not Found"), "professional_summary" (a 2-3 sentence string summarizing their profile), and "key_skills" (an array of strings of their most important skills).`;
-                case 'questions':
-                    return baseIntro + `Format your response as a JSON object with two keys: "behavioral_questions" (an array of strings for behavioral/situational questions) and "technical_questions" (an array of strings for technical questions based on their skills). Provide 3-4 questions for each category.`;
-                case 'email':
-                    return baseIntro + `Format your response as a JSON object with three keys: "recipient_name" (a string with the candidate's inferred name), "subject" (a string for a compelling subject line), and "body" (a string for the email content, using placeholders like [Job Role], [Your Company Name], and [Your Name]).`;
-            }
+            // Get filtered resume text based on privacy settings
+            const filteredText = getFilteredResumeText(text);
+            
+            // Get custom prompt template or use default
+            let promptTemplate = currentSettings.prompts[analysisType] || DEFAULT_PROMPTS[analysisType];
+            
+            // Replace {resume} placeholder with filtered resume text
+            const finalPrompt = promptTemplate.replace(/{resume}/g, filteredText);
+            
+            return finalPrompt;
         }
 
         function renderJsonResponse(data, type) {
